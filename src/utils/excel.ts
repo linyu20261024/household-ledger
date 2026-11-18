@@ -10,6 +10,7 @@ import {
   LedgerEntry,
   SummaryReport,
 } from '../types/ledger';
+import { resolveCreditLimitForCard } from './analytics';
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -588,7 +589,8 @@ export async function parseExcelWorkbook(
           rawMember === '家庭共同' ? '共同账户' : rawMember || DEFAULT_MEMBERS[0];
         const notes = String(getField(row, ['备注', '说明']) ?? '').trim();
 
-        if (amount < 0) {
+        const allowNegative = category === '信用卡支出额度';
+        if (amount < 0 && !allowNegative) {
           warnings.push(`工作表「${sheetName}」第 ${idx + 2} 行金额为负数，已按 0 处理`);
         }
 
@@ -599,13 +601,29 @@ export async function parseExcelWorkbook(
           category,
           name,
           institution,
-          amount: Math.max(0, amount),
+          amount: allowNegative ? amount : Math.max(0, amount),
           creditLimit: creditLimitVal > 0 ? creditLimitVal : undefined,
           member,
           notes: notes || undefined,
           updatedAt: new Date().toISOString(),
         });
       });
+
+      // Backfill missing credit card limits from other rows in the same workbook (forward/backward)
+      for (let i = 0; i < assetAccounts.length; i++) {
+        const item = assetAccounts[i];
+        if (item.category === '信用卡支出额度' && !item.creditLimit) {
+          const resolved = resolveCreditLimitForCard(
+            assetAccounts,
+            item.monthKey,
+            item.name,
+            item.institution
+          );
+          if (resolved) {
+            assetAccounts[i] = { ...item, creditLimit: resolved.creditLimit };
+          }
+        }
+      }
       continue;
     }
 

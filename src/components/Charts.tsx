@@ -753,7 +753,7 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
     let minV = 0;
     for (const p of data) {
       maxV = Math.max(maxV, p.totalAssets, p.totalLiabilities, p.netAssets);
-      minV = Math.min(minV, p.netAssets, 0);
+      minV = Math.min(minV, p.netAssets, p.totalLiabilities, 0);
     }
     const paddedMax = Math.ceil((maxV * 1.12) / 10000) * 10000;
     const paddedMin = minV < 0 ? Math.floor((minV * 1.1) / 10000) * 10000 : 0;
@@ -846,7 +846,13 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
             </span>
             <span className="font-mono-num">
               借贷与信用卡：
-              <strong className="text-red-600">{formatCurrency(activeDisplay.totalLiabilities)}</strong>
+              <strong
+                className={
+                  activeDisplay.totalLiabilities < 0 ? 'text-teal-700' : 'text-red-600'
+                }
+              >
+                {formatCurrency(activeDisplay.totalLiabilities)}
+              </strong>
             </span>
             <span className="font-mono-num">
               净货币资产：<strong className="text-indigo-700">{formatCurrency(activeDisplay.netAssets)}</strong>
@@ -922,15 +928,22 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
                   opacity={hoverIdx === null || isHovered || isActive ? 0.9 : 0.45}
                   rx={2}
                 />
-                <rect
-                  x={cx + 1.5}
-                  y={toY(p.totalLiabilities)}
-                  width={barW}
-                  height={Math.max(0, zeroY - toY(p.totalLiabilities))}
-                  fill="#DC2626"
-                  opacity={hoverIdx === null || isHovered || isActive ? 0.85 : 0.4}
-                  rx={2}
-                />
+                {(() => {
+                  const liabY = toY(p.totalLiabilities);
+                  const liabBarY = p.totalLiabilities >= 0 ? liabY : zeroY;
+                  const liabBarH = Math.abs(zeroY - liabY);
+                  return (
+                    <rect
+                      x={cx + 1.5}
+                      y={liabBarY}
+                      width={barW}
+                      height={liabBarH}
+                      fill={p.totalLiabilities < 0 ? '#0D9488' : '#DC2626'}
+                      opacity={hoverIdx === null || isHovered || isActive ? 0.85 : 0.4}
+                      rx={2}
+                    />
+                  );
+                })()}
                 <text
                   x={cx}
                   y={height - 12}

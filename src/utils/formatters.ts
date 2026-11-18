@@ -46,6 +46,23 @@ export function getPreviousMonthKey(monthKey: string): string {
   return `${y}-${String(m).padStart(2, '0')}`;
 }
 
+export function getNextMonthKey(monthKey: string): string {
+  const [yStr, mStr] = monthKey.split('-');
+  let y = Number(yStr);
+  let m = Number(mStr) + 1;
+  if (m === 13) {
+    m = 1;
+    y += 1;
+  }
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+export function getMonthDistance(monthA: string, monthB: string): number {
+  const [yA, mA] = monthA.split('-').map(Number);
+  const [yB, mB] = monthB.split('-').map(Number);
+  return (yA - yB) * 12 + (mA - mB);
+}
+
 export function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);

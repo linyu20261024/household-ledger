@@ -29,9 +29,10 @@ import {
   computeAssetSnapshotSummary,
   computeSummaryReport,
   filterEntriesByPeriod,
+  findNearestCopyableMonth,
+  resolveCreditLimitForCard,
 } from './utils/analytics';
 import { exportFullWorkbookToExcel, ParsedExcelResult } from './utils/excel';
-import { getPreviousMonthKey } from './utils/formatters';
 import { AnalyticsExportView } from './views/AnalyticsExportView';
 import { AssetsLiabilitiesView } from './views/AssetsLiabilitiesView';
 import { CategoryTagsView } from './views/CategoryTagsView';
@@ -203,10 +204,10 @@ export function App() {
     [assetAccounts, selectedYear]
   );
 
-  const hasPrevMonthAssetData = useMemo(() => {
-    const prevKey = getPreviousMonthKey(selectedMonth);
-    return assetAccounts.some((a) => a.monthKey === prevKey);
-  }, [assetAccounts, selectedMonth]);
+  const copySourceMonth = useMemo(
+    () => findNearestCopyableMonth(assetAccounts, selectedMonth),
+    [assetAccounts, selectedMonth]
+  );
 
   const activeTemplates = useMemo(() => templates.filter((t) => t.active), [templates]);
   const monthlyTemplateBaseline = useMemo(
@@ -407,25 +408,79 @@ export function App() {
   };
 
   // Asset & Credit/Loan Handlers
-  const handleSaveAssetAccount = (data: Omit<AssetAccountItem, 'id' | 'updatedAt'>) => {
-    if (editingAsset) {
-      setAssetAccounts((prev) =>
-        prev.map((a) =>
-          a.id === editingAsset.id
-            ? { ...a, ...data, updatedAt: new Date().toISOString() }
-            : a
-        )
+  const handleSaveAssetAccount = (
+    data: Omit<AssetAccountItem, 'id' | 'updatedAt'>,
+    options?: { syncCreditLimitToAllMonths?: boolean }
+  ) => {
+    const cleanName = data.name.trim().toLowerCase();
+    const cleanInst = data.institution.trim().toLowerCase();
+    const isSameCard = (item: AssetAccountItem) => {
+      if (item.category !== '信用卡支出额度') return false;
+      const iName = item.name.trim().toLowerCase();
+      const iInst = item.institution.trim().toLowerCase();
+      return cleanInst ? iName === cleanName && iInst === cleanInst : iName === cleanName;
+    };
+
+    // If creating a credit card without a limit, try inheriting from earlier/later months automatically
+    let resolvedCreditLimit = data.creditLimit;
+    if (!editingAsset && data.category === '信用卡支出额度' && !resolvedCreditLimit) {
+      const inherited = resolveCreditLimitForCard(
+        assetAccounts,
+        data.monthKey,
+        data.name,
+        data.institution
       );
+      if (inherited) {
+        resolvedCreditLimit = inherited.creditLimit;
+      }
+    }
+
+    const payload: Omit<AssetAccountItem, 'id' | 'updatedAt'> = {
+      ...data,
+      creditLimit: resolvedCreditLimit,
+    };
+
+    const propagateLimit = (list: AssetAccountItem[], targetId?: string): AssetAccountItem[] => {
+      if (payload.category !== '信用卡支出额度' || !payload.creditLimit) {
+        return list;
+      }
+      const nextLimit = payload.creditLimit;
+      const syncAll = Boolean(options?.syncCreditLimitToAllMonths);
+      return list.map((item) => {
+        if (targetId && item.id === targetId) return item;
+        if (item.monthKey === payload.monthKey) return item;
+        if (!isSameCard(item)) return item;
+        // Always backfill empty limits across earlier/later months; overwrite all if syncAll is enabled
+        if (syncAll || !item.creditLimit) {
+          return {
+            ...item,
+            creditLimit: nextLimit,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return item;
+      });
+    };
+
+    if (editingAsset) {
+      setAssetAccounts((prev) => {
+        const updated = prev.map((a) =>
+          a.id === editingAsset.id
+            ? { ...a, ...payload, updatedAt: new Date().toISOString() }
+            : a
+        );
+        return propagateLimit(updated, editingAsset.id);
+      });
       setEditingAsset(null);
       return;
     }
 
     const newItem: AssetAccountItem = {
-      ...data,
+      ...payload,
       id: createId('asset'),
       updatedAt: new Date().toISOString(),
     };
-    setAssetAccounts((prev) => [newItem, ...prev]);
+    setAssetAccounts((prev) => propagateLimit([newItem, ...prev], newItem.id));
   };
 
   const handleQuickUpdateAssetAmount = (id: string, newAmount: number) => {
@@ -440,10 +495,16 @@ export function App() {
     setAssetAccounts((prev) => prev.filter((a) => a.id !== id));
   };
 
-  const handleCopyAssetsFromPrevMonth = (monthKey: string): number => {
-    const prevKey = getPreviousMonthKey(monthKey);
-    const prevItems = assetAccounts.filter((a) => a.monthKey === prevKey);
-    if (prevItems.length === 0) return 0;
+  const handleCopyAssetsFromAdjacentMonth = (
+    monthKey: string,
+    explicitSourceMonth?: string
+  ): number => {
+    const sourceMonth =
+      explicitSourceMonth || findNearestCopyableMonth(assetAccounts, monthKey);
+    if (!sourceMonth) return 0;
+
+    const sourceItems = assetAccounts.filter((a) => a.monthKey === sourceMonth);
+    if (sourceItems.length === 0) return 0;
 
     const existingNames = new Set(
       assetAccounts
@@ -452,13 +513,24 @@ export function App() {
     );
 
     const toAdd: AssetAccountItem[] = [];
-    for (const item of prevItems) {
+    for (const item of sourceItems) {
       const sig = `${item.direction}::${item.name}`;
       if (existingNames.has(sig)) continue;
+      let creditLimit = item.creditLimit;
+      if (item.category === '信用卡支出额度' && !creditLimit) {
+        const resolved = resolveCreditLimitForCard(
+          assetAccounts,
+          monthKey,
+          item.name,
+          item.institution
+        );
+        if (resolved) creditLimit = resolved.creditLimit;
+      }
       toAdd.push({
         ...item,
         id: createId('asset'),
         monthKey,
+        creditLimit,
         updatedAt: new Date().toISOString(),
       });
     }
@@ -507,9 +579,25 @@ export function App() {
     }
 
     if (parsed.assetAccounts.length > 0) {
-      setAssetAccounts((prev) =>
-        mode === 'replace' ? parsed.assetAccounts : [...parsed.assetAccounts, ...prev]
-      );
+      setAssetAccounts((prev) => {
+        const combined =
+          mode === 'replace' ? parsed.assetAccounts : [...parsed.assetAccounts, ...prev];
+        // Ensure credit card limits inherit across all imported + existing months
+        return combined.map((item) => {
+          if (item.category === '信用卡支出额度' && !item.creditLimit) {
+            const resolved = resolveCreditLimitForCard(
+              combined,
+              item.monthKey,
+              item.name,
+              item.institution
+            );
+            if (resolved) {
+              return { ...item, creditLimit: resolved.creditLimit };
+            }
+          }
+          return item;
+        });
+      });
     }
   };
 
@@ -642,8 +730,8 @@ export function App() {
               allAssetItems={assetAccounts}
               summary={assetSummary}
               annualTrend={assetAnnualTrend}
-              hasPrevMonthData={hasPrevMonthAssetData}
-              onCopyFromPrevMonth={handleCopyAssetsFromPrevMonth}
+              copySourceMonth={copySourceMonth}
+              onCopyFromAdjacentMonth={handleCopyAssetsFromAdjacentMonth}
               onOpenAddAccount={(direction) => {
                 setEditingAsset(null);
                 setDefaultAssetDirection(direction);
@@ -718,6 +806,7 @@ export function App() {
         editingItem={editingAsset}
         defaultMonthKey={selectedMonth}
         defaultDirection={defaultAssetDirection}
+        allAssetItems={assetAccounts}
         onClose={() => {
           setAssetModalOpen(false);
           setEditingAsset(null);

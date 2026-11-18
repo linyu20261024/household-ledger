@@ -28,8 +28,8 @@ interface AssetsLiabilitiesViewProps {
   allAssetItems: AssetAccountItem[];
   summary: AssetSnapshotSummary;
   annualTrend: AssetMonthTrendPoint[];
-  hasPrevMonthData: boolean;
-  onCopyFromPrevMonth: (monthKey: string) => number;
+  copySourceMonth: string | null;
+  onCopyFromAdjacentMonth: (monthKey: string, sourceMonthKey?: string) => number;
   onOpenAddAccount: (direction: AccountDirection) => void;
   onEditAccount: (item: AssetAccountItem) => void;
   onQuickUpdateAmount: (id: string, newAmount: number) => void;
@@ -44,8 +44,8 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
   monthItems,
   summary,
   annualTrend,
-  hasPrevMonthData,
-  onCopyFromPrevMonth,
+  copySourceMonth,
+  onCopyFromAdjacentMonth,
   onOpenAddAccount,
   onEditAccount,
   onQuickUpdateAmount,
@@ -82,22 +82,44 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
     setInlineVal(String(item.amount));
   };
 
+  const toggleInlineSign = () => {
+    const trimmed = inlineVal.trim();
+    if (!trimmed) {
+      setInlineVal('-');
+    } else if (trimmed === '-') {
+      setInlineVal('');
+    } else if (trimmed.startsWith('-')) {
+      setInlineVal(trimmed.slice(1));
+    } else {
+      setInlineVal(`-${trimmed}`);
+    }
+  };
+
   const commitInlineEdit = (id: string) => {
     const num = Number(inlineVal);
-    if (Number.isFinite(num) && num >= 0) {
+    const target = monthItems.find((a) => a.id === id);
+    const allowNegative = target?.category === '信用卡支出额度';
+    if (Number.isFinite(num) && (allowNegative || num >= 0)) {
       onQuickUpdateAmount(id, Math.round(num * 100) / 100);
     }
     setInlineEditId(null);
   };
 
-  const handleCopyPrev = () => {
-    const added = onCopyFromPrevMonth(selectedMonth);
+  const handleCopyAdjacent = () => {
+    if (!copySourceMonth) return;
+    const added = onCopyFromAdjacentMonth(selectedMonth, copySourceMonth);
     setFeedback(
       added > 0
-        ? `已沿用上月账户结构，为 ${selectedMonth} 生成 ${added} 个账户条目，可直接更新月底余额。`
-        : `${selectedMonth} 已存在相同账户条目或上月无数据可沿用。`
+        ? `已继承 ${copySourceMonth} 的账户结构与信用卡授信额度，为 ${selectedMonth} 生成 ${added} 个账户条目，可直接更新月底金额。`
+        : `${selectedMonth} 已包含可继承的账户条目。`
     );
   };
+
+  const copyActionLabel = copySourceMonth
+    ? copySourceMonth > selectedMonth
+      ? `继承 ${copySourceMonth} 账户与额度`
+      : `沿用 ${copySourceMonth} 账户与额度`
+    : '继承相邻月份账户结构';
 
   const netDelta =
     summary.previousNetAssets !== undefined
@@ -118,14 +140,14 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
         </div>
 
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 no-print">
-          {hasPrevMonthData && monthItems.length === 0 && (
+          {copySourceMonth && monthItems.length === 0 && (
             <button
               type="button"
-              onClick={handleCopyPrev}
+              onClick={handleCopyAdjacent}
               className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 h-10 sm:h-9 px-3.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
               <Copy className="w-3.5 h-3.5" />
-              <span>沿用上月账户结构</span>
+              <span>{copyActionLabel}</span>
             </button>
           )}
           <button
@@ -201,7 +223,11 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
           <div className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">
             {selectedMonth} · 借贷与信用卡待还
           </div>
-          <div className="mt-1.5 sm:mt-2 font-mono-num text-lg sm:text-2xl font-bold text-red-600 truncate">
+          <div
+            className={`mt-1.5 sm:mt-2 font-mono-num text-lg sm:text-2xl font-bold truncate ${
+              summary.totalLiabilities < 0 ? 'text-teal-700' : 'text-red-600'
+            }`}
+          >
             {formatCurrency(summary.totalLiabilities)}
           </div>
           <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-slate-500 font-mono-num truncate">
@@ -275,14 +301,14 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
             <span className="font-mono-num text-sm font-bold text-teal-700">
               小计 {formatCurrency(summary.totalAssets)}
             </span>
-            {hasPrevMonthData && monthItems.length > 0 && (
+            {copySourceMonth && monthItems.length > 0 && (
               <button
                 type="button"
-                onClick={handleCopyPrev}
+                onClick={handleCopyAdjacent}
                 className="inline-flex items-center gap-1 min-h-[36px] px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors no-print"
               >
                 <Copy className="w-3.5 h-3.5" />
-                <span>补齐上月缺失账户</span>
+                <span>补齐 {copySourceMonth} 缺失账户</span>
               </button>
             )}
           </div>
@@ -294,16 +320,16 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
               {selectedMonth} 尚无货币资产盘点记录
             </p>
             <p className="text-xs text-slate-500 mt-1 mb-4">
-              可点击「登记货币资产」，或「沿用上月账户结构」快速生成本月盘点表
+              可点击「登记货币资产」，或继承前后已登记月份的账户结构与信用卡额度
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              {hasPrevMonthData && (
+              {copySourceMonth && (
                 <button
                   type="button"
-                  onClick={handleCopyPrev}
+                  onClick={handleCopyAdjacent}
                   className="h-10 px-4 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg"
                 >
-                  沿用上月账户结构
+                  {copyActionLabel}
                 </button>
               )}
               <button
@@ -536,7 +562,11 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
               追踪月底信用卡已用待还额度、授信总额度及各类消费贷/亲友借贷余额
             </p>
           </div>
-          <span className="font-mono-num text-sm font-bold text-red-600">
+          <span
+            className={`font-mono-num text-sm font-bold ${
+              summary.totalLiabilities < 0 ? 'text-teal-700' : 'text-red-600'
+            }`}
+          >
             借贷与信用支出小计 {formatCurrency(summary.totalLiabilities)}
           </span>
         </div>
@@ -561,6 +591,8 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
               {liabilityList.map((item) => {
                 const color = metaColorMap.get(item.category) || '#DC2626';
                 const isEditingInline = inlineEditId === item.id;
+                const isCreditCard = item.category === '信用卡支出额度';
+                const isNegativeCredit = isCreditCard && item.amount < 0;
                 const utilPct =
                   item.creditLimit && item.creditLimit > 0
                     ? (item.amount / item.creditLimit) * 100
@@ -591,11 +623,25 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                       <div className="text-right shrink-0">
                         {isEditingInline ? (
                           <div className="flex items-center gap-1.5">
+                            {isCreditCard && (
+                              <button
+                                type="button"
+                                onClick={toggleInlineSign}
+                                className={`h-10 px-2 text-xs font-semibold rounded-lg border ${
+                                  inlineVal.trim().startsWith('-')
+                                    ? 'bg-teal-50 border-teal-600 text-teal-800'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700'
+                                }`}
+                                title="切换正负"
+                              >
+                                ±
+                              </button>
+                            )}
                             <input
                               type="number"
-                              inputMode="decimal"
+                              inputMode={isCreditCard ? undefined : 'decimal'}
                               step="0.01"
-                              min="0"
+                              min={isCreditCard ? undefined : '0'}
                               autoFocus
                               value={inlineVal}
                               onChange={(e) => setInlineVal(e.target.value)}
@@ -603,7 +649,7 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                 if (e.key === 'Enter') commitInlineEdit(item.id);
                                 if (e.key === 'Escape') setInlineEditId(null);
                               }}
-                              className="w-28 h-10 px-2.5 text-right font-mono-num text-base sm:text-xs bg-white border border-teal-600 rounded-lg focus:outline-none"
+                              className="w-24 h-10 px-2.5 text-right font-mono-num text-base sm:text-xs bg-white border border-teal-600 rounded-lg focus:outline-none"
                             />
                             <button
                               type="button"
@@ -620,10 +666,16 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                             onClick={() => startInlineEdit(item)}
                             className="min-h-[40px] px-2 -mx-2 inline-flex flex-col items-end justify-center rounded-lg active:bg-slate-100"
                           >
-                            <span className="font-mono-num text-sm font-bold text-red-600">
+                            <span
+                              className={`font-mono-num text-sm font-bold ${
+                                isNegativeCredit ? 'text-teal-700' : 'text-red-600'
+                              }`}
+                            >
                               {formatCurrency(item.amount)}
                             </span>
-                            <span className="text-[11px] text-slate-400">点击改数</span>
+                            <span className="text-[11px] text-slate-400">
+                              {isNegativeCredit ? '溢缴结余 · 点击改数' : '点击改数'}
+                            </span>
                           </button>
                         )}
                       </div>
@@ -633,16 +685,22 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                       <div className="space-y-1 pt-0.5">
                         <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono-num">
                           <span>授信总额 {formatCurrency(item.creditLimit)}</span>
-                          <span className={(utilPct || 0) > 60 ? 'text-red-600 font-semibold' : ''}>
-                            已用 {formatPercent(utilPct || 0)}
-                          </span>
+                          {isNegativeCredit ? (
+                            <span className="text-teal-700 font-semibold">
+                              溢缴 {formatCurrency(Math.abs(item.amount))}（{formatPercent(utilPct || 0)}）
+                            </span>
+                          ) : (
+                            <span className={(utilPct || 0) > 60 ? 'text-red-600 font-semibold' : ''}>
+                              已用 {formatPercent(utilPct || 0)}
+                            </span>
+                          )}
                         </div>
                         <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
                               (utilPct || 0) > 60 ? 'bg-red-600' : 'bg-amber-600'
                             }`}
-                            style={{ width: `${Math.min(100, utilPct || 0)}%` }}
+                            style={{ width: `${Math.max(0, Math.min(100, utilPct || 0))}%` }}
                           />
                         </div>
                       </div>
@@ -689,6 +747,8 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                   {liabilityList.map((item) => {
                     const color = metaColorMap.get(item.category) || '#DC2626';
                     const isEditingInline = inlineEditId === item.id;
+                    const isCreditCard = item.category === '信用卡支出额度';
+                    const isNegativeCredit = isCreditCard && item.amount < 0;
                     const utilPct =
                       item.creditLimit && item.creditLimit > 0
                         ? (item.amount / item.creditLimit) * 100
@@ -718,14 +778,23 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                         <td className="py-3 px-4 text-right font-mono-num text-slate-500 whitespace-nowrap">
                           {item.creditLimit ? (
                             <span>
-                              总额 {formatCurrency(item.creditLimit)} · 已用{' '}
-                              <strong
-                                className={
-                                  (utilPct || 0) > 60 ? 'text-red-600' : 'text-slate-700'
-                                }
-                              >
-                                {formatPercent(utilPct || 0)}
-                              </strong>
+                              总额 {formatCurrency(item.creditLimit)} ·{' '}
+                              {isNegativeCredit ? (
+                                <strong className="text-teal-700">
+                                  溢缴结余（{formatPercent(utilPct || 0)}）
+                                </strong>
+                              ) : (
+                                <>
+                                  已用{' '}
+                                  <strong
+                                    className={
+                                      (utilPct || 0) > 60 ? 'text-red-600' : 'text-slate-700'
+                                    }
+                                  >
+                                    {formatPercent(utilPct || 0)}
+                                  </strong>
+                                </>
+                              )}
                             </span>
                           ) : (
                             '—'
@@ -734,11 +803,25 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           {isEditingInline ? (
                             <div className="inline-flex items-center gap-1 justify-end">
+                              {isCreditCard && (
+                                <button
+                                  type="button"
+                                  onClick={toggleInlineSign}
+                                  className={`h-7 px-1.5 text-[11px] font-semibold rounded border ${
+                                    inlineVal.trim().startsWith('-')
+                                      ? 'bg-teal-50 border-teal-600 text-teal-800'
+                                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                                  }`}
+                                  title="切换正负"
+                                >
+                                  ±
+                                </button>
+                              )}
                               <input
                                 type="number"
-                                inputMode="decimal"
+                                inputMode={isCreditCard ? undefined : 'decimal'}
                                 step="0.01"
-                                min="0"
+                                min={isCreditCard ? undefined : '0'}
                                 autoFocus
                                 value={inlineVal}
                                 onChange={(e) => setInlineVal(e.target.value)}
@@ -762,9 +845,14 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                               type="button"
                               onClick={() => startInlineEdit(item)}
                               title="点击快捷修改月底金额"
-                              className="font-mono-num font-semibold text-red-600 hover:underline cursor-pointer"
+                              className={`font-mono-num font-semibold hover:underline cursor-pointer ${
+                                isNegativeCredit ? 'text-teal-700' : 'text-red-600'
+                              }`}
                             >
                               {formatCurrency(item.amount)}
+                              {isNegativeCredit && (
+                                <span className="ml-1 text-[11px] font-normal">（溢缴）</span>
+                              )}
                             </button>
                           )}
                         </td>

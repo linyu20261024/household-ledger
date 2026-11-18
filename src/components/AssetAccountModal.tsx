@@ -1,15 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CreditCard, X } from 'lucide-react';
 import { ASSET_CATEGORY_META, DEFAULT_MEMBERS } from '../data/seedData';
 import { AccountDirection, AssetAccountItem, AssetCategory } from '../types/ledger';
+import { getCreditCardProfiles, resolveCreditLimitForCard } from '../utils/analytics';
+import { formatCurrency } from '../utils/formatters';
 
 interface AssetAccountModalProps {
   open: boolean;
   editingItem: AssetAccountItem | null;
   defaultMonthKey: string;
   defaultDirection?: AccountDirection;
+  allAssetItems: AssetAccountItem[];
   onClose: () => void;
-  onSave: (data: Omit<AssetAccountItem, 'id' | 'updatedAt'>) => void;
+  onSave: (
+    data: Omit<AssetAccountItem, 'id' | 'updatedAt'>,
+    options?: { syncCreditLimitToAllMonths?: boolean }
+  ) => void;
 }
 
 export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
@@ -17,6 +23,7 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
   editingItem,
   defaultMonthKey,
   defaultDirection = 'asset',
+  allAssetItems,
   onClose,
   onSave,
 }) => {
@@ -27,6 +34,9 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
   const [institution, setInstitution] = useState('');
   const [amount, setAmount] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
+  const [limitTouched, setLimitTouched] = useState(false);
+  const [inheritedFromMonth, setInheritedFromMonth] = useState<string | null>(null);
+  const [syncLimitToAllMonths, setSyncLimitToAllMonths] = useState(true);
   const [member, setMember] = useState(DEFAULT_MEMBERS[0]);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
@@ -36,9 +46,32 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
     ? DEFAULT_MEMBERS
     : [...DEFAULT_MEMBERS, member];
 
+  const isCreditCard = direction === 'liability' && category === '信用卡支出额度';
+
+  const knownCards = useMemo(
+    () => (isCreditCard ? getCreditCardProfiles(allAssetItems, monthKey) : []),
+    [isCreditCard, allAssetItems, monthKey]
+  );
+
+  const sameCardOtherMonthsCount = useMemo(() => {
+    if (!isCreditCard) return 0;
+    const cleanName = name.trim().toLowerCase();
+    const cleanInst = institution.trim().toLowerCase();
+    if (!cleanName) return 0;
+    return allAssetItems.filter((a) => {
+      if (a.category !== '信用卡支出额度' || a.monthKey === monthKey) return false;
+      const iName = a.name.trim().toLowerCase();
+      const iInst = a.institution.trim().toLowerCase();
+      return cleanInst ? iName === cleanName && iInst === cleanInst : iName === cleanName;
+    }).length;
+  }, [isCreditCard, allAssetItems, monthKey, name, institution]);
+
   useEffect(() => {
     if (!open) return;
     setError('');
+    setInheritedFromMonth(null);
+    setSyncLimitToAllMonths(true);
+
     if (editingItem) {
       setDirection(editingItem.direction);
       setCategory(editingItem.category);
@@ -46,7 +79,9 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
       setName(editingItem.name);
       setInstitution(editingItem.institution);
       setAmount(String(editingItem.amount));
-      setCreditLimit(editingItem.creditLimit ? String(editingItem.creditLimit) : '');
+      const hasLimit = Boolean(editingItem.creditLimit && editingItem.creditLimit > 0);
+      setCreditLimit(hasLimit ? String(editingItem.creditLimit) : '');
+      setLimitTouched(hasLimit);
       setMember(editingItem.member);
       setNotes(editingItem.notes || '');
     } else {
@@ -58,6 +93,7 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
       setInstitution('');
       setAmount('');
       setCreditLimit('');
+      setLimitTouched(false);
       setMember(DEFAULT_MEMBERS[0]);
       setNotes('');
     }
@@ -71,7 +107,51 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
     }
   }, [direction, scopedCategories, category, open]);
 
+  // Auto-inherit credit card limit from earlier or later months when user hasn't manually overridden it
+  useEffect(() => {
+    if (!open || !isCreditCard || limitTouched) return;
+    const match = resolveCreditLimitForCard(allAssetItems, monthKey, name, institution);
+    if (match) {
+      setCreditLimit(String(match.creditLimit));
+      setInheritedFromMonth(match.sourceMonthKey);
+    } else if (!editingItem?.creditLimit) {
+      setInheritedFromMonth(null);
+    }
+  }, [open, isCreditCard, limitTouched, allAssetItems, monthKey, name, institution, editingItem]);
+
   if (!open) return null;
+
+  const handleSelectKnownCard = (card: (typeof knownCards)[number]) => {
+    setName(card.name);
+    setInstitution(card.institution);
+    setMember(card.member);
+    if (card.creditLimit && card.creditLimit > 0) {
+      setCreditLimit(String(card.creditLimit));
+      setInheritedFromMonth(card.sourceMonthKey);
+      setLimitTouched(false);
+    } else {
+      setCreditLimit('');
+      setInheritedFromMonth(null);
+      setLimitTouched(false);
+    }
+  };
+
+  const handleToggleAmountSign = () => {
+    const trimmed = amount.trim();
+    if (!trimmed) {
+      setAmount('-');
+      return;
+    }
+    if (trimmed === '-') {
+      setAmount('');
+      return;
+    }
+    if (trimmed.startsWith('-')) {
+      setAmount(trimmed.slice(1));
+    } else {
+      setAmount(`-${trimmed}`);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,8 +160,8 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
       setError('请填写账户或借贷名称');
       return;
     }
-    if (!Number.isFinite(numAmount) || numAmount < 0) {
-      setError('请输入有效的金额（不能为负数）');
+    if (!Number.isFinite(numAmount) || (!isCreditCard && numAmount < 0)) {
+      setError(isCreditCard ? '请输入有效的金额' : '请输入有效的金额（不能为负数）');
       return;
     }
 
@@ -91,20 +171,25 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
       return;
     }
 
-    onSave({
-      monthKey,
-      direction,
-      category,
-      name: name.trim(),
-      institution: institution.trim() || '未填写机构',
-      amount: Math.round(numAmount * 100) / 100,
-      creditLimit:
-        category === '信用卡支出额度' && numLimit && numLimit > 0
-          ? Math.round(numLimit * 100) / 100
-          : undefined,
-      member,
-      notes: notes.trim() || undefined,
-    });
+    onSave(
+      {
+        monthKey,
+        direction,
+        category,
+        name: name.trim(),
+        institution: institution.trim() || '未填写机构',
+        amount: Math.round(numAmount * 100) / 100,
+        creditLimit:
+          isCreditCard && numLimit && numLimit > 0
+            ? Math.round(numLimit * 100) / 100
+            : undefined,
+        member,
+        notes: notes.trim() || undefined,
+      },
+      {
+        syncCreditLimitToAllMonths: isCreditCard ? syncLimitToAllMonths : false,
+      }
+    );
     onClose();
   };
 
@@ -196,6 +281,44 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
               </div>
             </div>
 
+            {/* Known Credit Cards Quick Inherit Strip */}
+            {isCreditCard && !editingItem && knownCards.length > 0 && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                    <CreditCard className="w-3.5 h-3.5 text-teal-700" />
+                    <span>快捷继承已登记信用卡与授信额度</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400">支持前后月份继承</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {knownCards.map((card) => {
+                    const selected =
+                      name.trim() === card.name && institution.trim() === card.institution;
+                    return (
+                      <button
+                        key={card.key}
+                        type="button"
+                        onClick={() => handleSelectKnownCard(card)}
+                        className={`min-h-[36px] px-2.5 py-1 text-xs rounded-lg border text-left transition-colors ${
+                          selected
+                            ? 'bg-teal-50 border-teal-600 text-teal-900 font-medium'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span>{card.name}</span>
+                        {card.creditLimit ? (
+                          <span className="ml-1.5 font-mono-num text-[11px] text-teal-700">
+                            授信 {formatCurrency(card.creditLimit)}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="asset-name" className="block text-xs font-medium text-slate-600 mb-1.5">
@@ -235,24 +358,45 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                 <label htmlFor="asset-amount" className="block text-xs font-medium text-slate-600 mb-1.5">
                   {direction === 'asset'
                     ? '月底账户余额 / 市值（元）'
-                    : category === '信用卡支出额度'
+                    : isCreditCard
                       ? '信用卡已用待还额度（元）'
                       : '期末借贷待还余额（元）'}
                 </label>
-                <input
-                  id="asset-amount"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
-                />
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id="asset-amount"
+                    type="number"
+                    inputMode={isCreditCard ? undefined : 'decimal'}
+                    step="0.01"
+                    min={isCreditCard ? undefined : '0'}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder={isCreditCard ? '0.00（负数为溢缴结余）' : '0.00'}
+                    className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+                  />
+                  {isCreditCard && (
+                    <button
+                      type="button"
+                      onClick={handleToggleAmountSign}
+                      title="切换正负号（负数表示溢缴款或退款结余）"
+                      className={`min-w-[44px] h-11 sm:h-10 px-2.5 text-xs font-semibold rounded-lg border shrink-0 transition-colors ${
+                        amount.trim().startsWith('-')
+                          ? 'bg-teal-50 border-teal-600 text-teal-800'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      ± 负
+                    </button>
+                  )}
+                </div>
+                {isCreditCard && (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    支持输入负数（如 -500 表示溢缴款或退款结余，自动冲减总负债）
+                  </p>
+                )}
               </div>
 
-              {category === '信用卡支出额度' && (
+              {isCreditCard && (
                 <div>
                   <label htmlFor="asset-limit" className="block text-xs font-medium text-slate-600 mb-1.5">
                     信用卡授信总额度（元，可选）
@@ -264,10 +408,31 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                     step="0.01"
                     min="0"
                     value={creditLimit}
-                    onChange={(e) => setCreditLimit(e.target.value)}
+                    onChange={(e) => {
+                      setCreditLimit(e.target.value);
+                      setLimitTouched(true);
+                      setInheritedFromMonth(null);
+                    }}
                     placeholder="如：50000"
                     className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
                   />
+                  {inheritedFromMonth ? (
+                    <p className="text-[11px] text-teal-700 mt-1">
+                      已自动继承「{inheritedFromMonth}」同卡授信额度（前/后月通用）
+                    </p>
+                  ) : (
+                    sameCardOtherMonthsCount > 0 && (
+                      <label className="flex items-start gap-2 mt-1.5 text-[11px] text-slate-600 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={syncLimitToAllMonths}
+                          onChange={(e) => setSyncLimitToAllMonths(e.target.checked)}
+                          className="mt-0.5 w-3.5 h-3.5 accent-teal-700 rounded"
+                        />
+                        <span>同步更新前后月份同卡额度（另 {sameCardOtherMonthsCount} 期）</span>
+                      </label>
+                    )
+                  )}
                 </div>
               )}
             </div>
@@ -331,3 +496,4 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
     </div>
   );
 };
+

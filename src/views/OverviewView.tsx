@@ -201,7 +201,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
             <div>
               <div className="text-[11px] text-slate-500">借贷与信用</div>
-              <div className="font-mono-num text-xs sm:text-sm font-bold text-red-600 mt-0.5 truncate">
+              <div
+                className={`font-mono-num text-xs sm:text-sm font-bold mt-0.5 truncate ${
+                  assetSummary.totalLiabilities < 0 ? 'text-teal-700' : 'text-red-600'
+                }`}
+              >
                 {formatCurrency(assetSummary.totalLiabilities)}
               </div>
             </div>

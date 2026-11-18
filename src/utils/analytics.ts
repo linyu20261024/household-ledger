@@ -12,7 +12,7 @@ import {
   PeriodMode,
   SummaryReport,
 } from '../types/ledger';
-import { formatPeriodLabel, getPreviousMonthKey } from './formatters';
+import { formatPeriodLabel, getMonthDistance, getNextMonthKey, getPreviousMonthKey } from './formatters';
 
 export function filterEntriesByPeriod(
   entries: LedgerEntry[],
@@ -317,6 +317,168 @@ export function computeAssetAnnualTrend(
   }
   return points;
 }
+
+export interface CreditCardProfile {
+  key: string;
+  name: string;
+  institution: string;
+  creditLimit?: number;
+  member: string;
+  sourceMonthKey: string;
+  notes?: string;
+}
+
+export function getCreditCardProfiles(
+  allAssets: AssetAccountItem[],
+  targetMonthKey?: string
+): CreditCardProfile[] {
+  const cards = allAssets.filter(
+    (a) => a.direction === 'liability' && a.category === '信用卡支出额度'
+  );
+  const grouped = new Map<string, AssetAccountItem[]>();
+  for (const item of cards) {
+    const key = `${item.institution.trim()}::${item.name.trim()}`;
+    const list = grouped.get(key) || [];
+    list.push(item);
+    grouped.set(key, list);
+  }
+
+  const pickBest = (list: AssetAccountItem[]): AssetAccountItem => {
+    const sorted = [...list].sort((a, b) => {
+      const aHasLimit = a.creditLimit && a.creditLimit > 0 ? 1 : 0;
+      const bHasLimit = b.creditLimit && b.creditLimit > 0 ? 1 : 0;
+      if (aHasLimit !== bHasLimit) return bHasLimit - aHasLimit;
+
+      if (targetMonthKey) {
+        const distA = Math.abs(getMonthDistance(a.monthKey, targetMonthKey));
+        const distB = Math.abs(getMonthDistance(b.monthKey, targetMonthKey));
+        if (distA !== distB) return distA - distB;
+        // Equidistant: prefer earlier month first
+        if (a.monthKey !== b.monthKey) return a.monthKey.localeCompare(b.monthKey);
+      }
+
+      return b.monthKey.localeCompare(a.monthKey) || b.updatedAt.localeCompare(a.updatedAt);
+    });
+    return sorted[0];
+  };
+
+  return Array.from(grouped.entries())
+    .map(([key, list]) => {
+      const best = pickBest(list);
+      return {
+        key,
+        name: best.name,
+        institution: best.institution,
+        creditLimit: best.creditLimit && best.creditLimit > 0 ? best.creditLimit : undefined,
+        member: best.member,
+        sourceMonthKey: best.monthKey,
+        notes: best.notes,
+      };
+    })
+    .sort((a, b) => {
+      if (targetMonthKey) {
+        const distA = Math.abs(getMonthDistance(a.sourceMonthKey, targetMonthKey));
+        const distB = Math.abs(getMonthDistance(b.sourceMonthKey, targetMonthKey));
+        if (distA !== distB) return distA - distB;
+      }
+      return a.institution.localeCompare(b.institution) || a.name.localeCompare(b.name);
+    });
+}
+
+export function resolveCreditLimitForCard(
+  allAssets: AssetAccountItem[],
+  targetMonthKey: string,
+  name: string,
+  institution: string
+): { creditLimit: number; sourceMonthKey: string } | null {
+  const cleanName = name.trim().toLowerCase();
+  const cleanInst = institution.trim().toLowerCase();
+  if (!cleanName && !cleanInst) return null;
+
+  const candidates = allAssets.filter(
+    (a) =>
+      a.direction === 'liability' &&
+      a.category === '信用卡支出额度' &&
+      a.creditLimit !== undefined &&
+      a.creditLimit > 0 &&
+      a.monthKey !== targetMonthKey
+  );
+  if (candidates.length === 0) return null;
+
+  const scoreMatch = (item: AssetAccountItem): number => {
+    const iName = item.name.trim().toLowerCase();
+    const iInst = item.institution.trim().toLowerCase();
+    if (cleanName && cleanInst && iName === cleanName && iInst === cleanInst) return 3;
+    if (cleanName && iName === cleanName) return 2;
+    if (cleanInst && iInst === cleanInst) return 1;
+    return 0;
+  };
+
+  const matched = candidates
+    .map((item) => ({ item, score: scoreMatch(item) }))
+    .filter((x) => x.score > 0);
+
+  if (matched.length === 0) return null;
+
+  // If only institution matched (score === 1) and there are multiple distinct cards under that bank with different limits,
+  // only auto-infer when there's a clear single card or identical limit for that bank.
+  const bestScore = Math.max(...matched.map((m) => m.score));
+  const topMatches = matched.filter((m) => m.score === bestScore);
+  if (bestScore === 1) {
+    const uniqueLimits = new Set(topMatches.map((m) => m.item.creditLimit));
+    if (uniqueLimits.size > 1) return null;
+  }
+
+  topMatches.sort((a, b) => {
+    const distA = Math.abs(getMonthDistance(a.item.monthKey, targetMonthKey));
+    const distB = Math.abs(getMonthDistance(b.item.monthKey, targetMonthKey));
+    if (distA !== distB) return distA - distB;
+    if (a.item.monthKey !== b.item.monthKey) return a.item.monthKey.localeCompare(b.item.monthKey);
+    return b.item.updatedAt.localeCompare(a.item.updatedAt);
+  });
+
+  const best = topMatches[0].item;
+  return {
+    creditLimit: best.creditLimit as number,
+    sourceMonthKey: best.monthKey,
+  };
+}
+
+export function findNearestCopyableMonth(
+  allAssets: AssetAccountItem[],
+  targetMonthKey: string
+): string | null {
+  const existingSigs = new Set(
+    allAssets
+      .filter((a) => a.monthKey === targetMonthKey)
+      .map((a) => `${a.direction}::${a.name}`)
+  );
+
+  const monthsWithMissing = new Set<string>();
+  for (const item of allAssets) {
+    if (item.monthKey === targetMonthKey) continue;
+    const sig = `${item.direction}::${item.name}`;
+    if (!existingSigs.has(sig)) {
+      monthsWithMissing.add(item.monthKey);
+    }
+  }
+
+  if (monthsWithMissing.size === 0) return null;
+
+  const prevKey = getPreviousMonthKey(targetMonthKey);
+  if (monthsWithMissing.has(prevKey)) return prevKey;
+
+  const nextKey = getNextMonthKey(targetMonthKey);
+  if (monthsWithMissing.has(nextKey)) return nextKey;
+
+  return Array.from(monthsWithMissing).sort((a, b) => {
+    const distA = Math.abs(getMonthDistance(a, targetMonthKey));
+    const distB = Math.abs(getMonthDistance(b, targetMonthKey));
+    if (distA !== distB) return distA - distB;
+    return a.localeCompare(b);
+  })[0];
+}
+
 
 export function buildCsvReport(
   report: SummaryReport,
