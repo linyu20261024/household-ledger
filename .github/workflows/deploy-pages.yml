@@ -2,11 +2,10 @@ name: Deploy to GitHub Pages
 
 on:
   workflow_dispatch:
-  # 在 GitHub 仓库 Settings -> Pages -> Source 选择 "GitHub Actions" 后，
-  # 如需每次推送 main 分支自动部署，可取消下方注释：
-  # push:
-  #   branches:
-  #     - main
+  push:
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
