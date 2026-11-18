@@ -49,22 +49,24 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
   const isCreditCard = direction === 'liability' && category === '信用卡支出额度';
 
   const knownCards = useMemo(
-    () => (isCreditCard ? getCreditCardProfiles(allAssetItems, monthKey) : []),
-    [isCreditCard, allAssetItems, monthKey]
+    () => (isCreditCard ? getCreditCardProfiles(allAssetItems, monthKey, member) : []),
+    [isCreditCard, allAssetItems, monthKey, member]
   );
 
   const sameCardOtherMonthsCount = useMemo(() => {
     if (!isCreditCard) return 0;
     const cleanName = name.trim().toLowerCase();
     const cleanInst = institution.trim().toLowerCase();
+    const cleanMember = (member || DEFAULT_MEMBERS[0]).trim();
     if (!cleanName) return 0;
     return allAssetItems.filter((a) => {
       if (a.category !== '信用卡支出额度' || a.monthKey === monthKey) return false;
-      const iName = a.name.trim().toLowerCase();
-      const iInst = a.institution.trim().toLowerCase();
+      if ((a.member || DEFAULT_MEMBERS[0]).trim() !== cleanMember) return false;
+      const iName = (a.name || '').trim().toLowerCase();
+      const iInst = (a.institution || '').trim().toLowerCase();
       return cleanInst ? iName === cleanName && iInst === cleanInst : iName === cleanName;
     }).length;
-  }, [isCreditCard, allAssetItems, monthKey, name, institution]);
+  }, [isCreditCard, allAssetItems, monthKey, name, institution, member]);
 
   useEffect(() => {
     if (!open) return;
@@ -107,17 +109,18 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
     }
   }, [direction, scopedCategories, category, open]);
 
-  // Auto-inherit credit card limit from earlier or later months when user hasn't manually overridden it
+  // Auto-inherit credit card limit from earlier or later months for the SAME member when user hasn't manually overridden it
   useEffect(() => {
     if (!open || !isCreditCard || limitTouched) return;
-    const match = resolveCreditLimitForCard(allAssetItems, monthKey, name, institution);
+    const match = resolveCreditLimitForCard(allAssetItems, monthKey, name, institution, member);
     if (match) {
       setCreditLimit(String(match.creditLimit));
       setInheritedFromMonth(match.sourceMonthKey);
     } else if (!editingItem?.creditLimit) {
+      setCreditLimit('');
       setInheritedFromMonth(null);
     }
-  }, [open, isCreditCard, limitTouched, allAssetItems, monthKey, name, institution, editingItem]);
+  }, [open, isCreditCard, limitTouched, allAssetItems, monthKey, name, institution, member, editingItem]);
 
   if (!open) return null;
 
@@ -289,12 +292,14 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                     <CreditCard className="w-3.5 h-3.5 text-teal-700" />
                     <span>快捷继承已登记信用卡与授信额度</span>
                   </span>
-                  <span className="text-[11px] text-slate-400">支持前后月份继承</span>
+                  <span className="text-[11px] text-slate-400">按人区分 · 前后月通用</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {knownCards.map((card) => {
                     const selected =
-                      name.trim() === card.name && institution.trim() === card.institution;
+                      name.trim() === card.name &&
+                      institution.trim() === card.institution &&
+                      member === card.member;
                     return (
                       <button
                         key={card.key}
@@ -306,6 +311,7 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
                         }`}
                       >
+                        <span className="text-slate-500 mr-1">[{card.member}]</span>
                         <span>{card.name}</span>
                         {card.creditLimit ? (
                           <span className="ml-1.5 font-mono-num text-[11px] text-teal-700">
@@ -418,7 +424,7 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                   />
                   {inheritedFromMonth ? (
                     <p className="text-[11px] text-teal-700 mt-1">
-                      已自动继承「{inheritedFromMonth}」同卡授信额度（前/后月通用）
+                      已自动继承「{member} · {inheritedFromMonth}」同卡授信额度（前/后月通用）
                     </p>
                   ) : (
                     sameCardOtherMonthsCount > 0 && (
@@ -429,7 +435,7 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                           onChange={(e) => setSyncLimitToAllMonths(e.target.checked)}
                           className="mt-0.5 w-3.5 h-3.5 accent-teal-700 rounded"
                         />
-                        <span>同步更新前后月份同卡额度（另 {sameCardOtherMonthsCount} 期）</span>
+                        <span>同步更新「{member}」前后月份同卡额度（另 {sameCardOtherMonthsCount} 期）</span>
                       </label>
                     )
                   )}

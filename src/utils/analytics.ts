@@ -1,4 +1,4 @@
-import { ASSET_CATEGORY_META } from '../data/seedData';
+import { DEFAULT_MEMBERS, ASSET_CATEGORY_META } from '../data/seedData';
 import {
   AssetAccountItem,
   AssetCategory,
@@ -330,16 +330,18 @@ export interface CreditCardProfile {
 
 export function getCreditCardProfiles(
   allAssets: AssetAccountItem[],
-  targetMonthKey?: string
+  targetMonthKey?: string,
+  preferredMember?: string
 ): CreditCardProfile[] {
   const cards = allAssets.filter(
     (a) => a.direction === 'liability' && a.category === '信用卡支出额度'
   );
   const grouped = new Map<string, AssetAccountItem[]>();
   for (const item of cards) {
+    const member = (item.member || DEFAULT_MEMBERS[0]).trim();
     const inst = (item.institution || '').trim();
     const nm = (item.name || '').trim();
-    const key = `${inst}::${nm}`;
+    const key = `${member}::${inst.toLowerCase()}::${nm.toLowerCase()}`;
     const list = grouped.get(key) || [];
     list.push(item);
     grouped.set(key, list);
@@ -367,6 +369,12 @@ export function getCreditCardProfiles(
     return sorted[0];
   };
 
+  const getMemberRank = (m: string): number => {
+    if (preferredMember && m === preferredMember) return -1;
+    const idx = DEFAULT_MEMBERS.indexOf(m);
+    return idx === -1 ? 99 : idx;
+  };
+
   return Array.from(grouped.entries())
     .map(([key, list]) => {
       const best = pickBest(list);
@@ -375,12 +383,14 @@ export function getCreditCardProfiles(
         name: best.name || '',
         institution: best.institution || '',
         creditLimit: best.creditLimit && best.creditLimit > 0 ? best.creditLimit : undefined,
-        member: best.member || '先生',
+        member: (best.member || DEFAULT_MEMBERS[0]).trim(),
         sourceMonthKey: best.monthKey || '',
         notes: best.notes,
       };
     })
     .sort((a, b) => {
+      const rankDiff = getMemberRank(a.member) - getMemberRank(b.member);
+      if (rankDiff !== 0) return rankDiff;
       if (targetMonthKey) {
         const distA = Math.abs(getMonthDistance(a.sourceMonthKey || targetMonthKey, targetMonthKey));
         const distB = Math.abs(getMonthDistance(b.sourceMonthKey || targetMonthKey, targetMonthKey));
@@ -394,16 +404,19 @@ export function resolveCreditLimitForCard(
   allAssets: AssetAccountItem[],
   targetMonthKey: string,
   name: string,
-  institution: string
+  institution: string,
+  member: string
 ): { creditLimit: number; sourceMonthKey: string } | null {
   const cleanName = (name || '').trim().toLowerCase();
   const cleanInst = (institution || '').trim().toLowerCase();
+  const cleanMember = (member || DEFAULT_MEMBERS[0]).trim();
   if (!cleanName && !cleanInst) return null;
 
   const candidates = allAssets.filter(
     (a) =>
       a.direction === 'liability' &&
       a.category === '信用卡支出额度' &&
+      (a.member || DEFAULT_MEMBERS[0]).trim() === cleanMember &&
       a.creditLimit !== undefined &&
       a.creditLimit > 0 &&
       a.monthKey !== targetMonthKey
@@ -425,8 +438,8 @@ export function resolveCreditLimitForCard(
 
   if (matched.length === 0) return null;
 
-  // If only institution matched (score === 1) and there are multiple distinct cards under that bank with different limits,
-  // only auto-infer when there's a clear single card or identical limit for that bank.
+  // If only institution matched (score === 1) and there are multiple distinct cards under that bank & member with different limits,
+  // only auto-infer when there's a clear single card or identical limit for that bank & member.
   const bestScore = Math.max(...matched.map((m) => m.score));
   const topMatches = matched.filter((m) => m.score === bestScore);
   if (bestScore === 1) {
@@ -455,16 +468,17 @@ export function findNearestCopyableMonth(
   allAssets: AssetAccountItem[],
   targetMonthKey: string
 ): string | null {
+  const getSig = (a: AssetAccountItem) =>
+    `${a.direction}::${(a.member || DEFAULT_MEMBERS[0]).trim()}::${(a.institution || '').trim()}::${(a.name || '').trim()}`;
+
   const existingSigs = new Set(
-    allAssets
-      .filter((a) => a.monthKey === targetMonthKey)
-      .map((a) => `${a.direction}::${a.name}`)
+    allAssets.filter((a) => a.monthKey === targetMonthKey).map(getSig)
   );
 
   const monthsWithMissing = new Set<string>();
   for (const item of allAssets) {
     if (item.monthKey === targetMonthKey) continue;
-    const sig = `${item.direction}::${item.name}`;
+    const sig = getSig(item);
     if (!existingSigs.has(sig)) {
       monthsWithMissing.add(item.monthKey);
     }

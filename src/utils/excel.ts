@@ -617,7 +617,8 @@ export async function parseExcelWorkbook(
             assetAccounts,
             item.monthKey,
             item.name,
-            item.institution
+            item.institution,
+            item.member
           );
           if (resolved) {
             assetAccounts[i] = { ...item, creditLimit: resolved.creditLimit };

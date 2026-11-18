@@ -491,23 +491,26 @@ export function App() {
     data: Omit<AssetAccountItem, 'id' | 'updatedAt'>,
     options?: { syncCreditLimitToAllMonths?: boolean }
   ) => {
-    const cleanName = data.name.trim().toLowerCase();
-    const cleanInst = data.institution.trim().toLowerCase();
+    const cleanName = (data.name || '').trim().toLowerCase();
+    const cleanInst = (data.institution || '').trim().toLowerCase();
+    const cleanMember = (data.member || '先生').trim();
     const isSameCard = (item: AssetAccountItem) => {
       if (item.category !== '信用卡支出额度') return false;
-      const iName = item.name.trim().toLowerCase();
-      const iInst = item.institution.trim().toLowerCase();
+      if ((item.member || '先生').trim() !== cleanMember) return false;
+      const iName = (item.name || '').trim().toLowerCase();
+      const iInst = (item.institution || '').trim().toLowerCase();
       return cleanInst ? iName === cleanName && iInst === cleanInst : iName === cleanName;
     };
 
-    // If creating a credit card without a limit, try inheriting from earlier/later months automatically
+    // If creating a credit card without a limit, try inheriting from earlier/later months for the same member automatically
     let resolvedCreditLimit = data.creditLimit;
     if (!editingAsset && data.category === '信用卡支出额度' && !resolvedCreditLimit) {
       const inherited = resolveCreditLimitForCard(
         assetAccounts,
         data.monthKey,
         data.name,
-        data.institution
+        data.institution,
+        data.member
       );
       if (inherited) {
         resolvedCreditLimit = inherited.creditLimit;
@@ -585,15 +588,16 @@ export function App() {
     const sourceItems = assetAccounts.filter((a) => a.monthKey === sourceMonth);
     if (sourceItems.length === 0) return 0;
 
+    const getSig = (a: AssetAccountItem) =>
+      `${a.direction}::${(a.member || '先生').trim()}::${(a.institution || '').trim()}::${(a.name || '').trim()}`;
+
     const existingNames = new Set(
-      assetAccounts
-        .filter((a) => a.monthKey === monthKey)
-        .map((a) => `${a.direction}::${a.name}`)
+      assetAccounts.filter((a) => a.monthKey === monthKey).map(getSig)
     );
 
     const toAdd: AssetAccountItem[] = [];
     for (const item of sourceItems) {
-      const sig = `${item.direction}::${item.name}`;
+      const sig = getSig(item);
       if (existingNames.has(sig)) continue;
       let creditLimit = item.creditLimit;
       if (item.category === '信用卡支出额度' && !creditLimit) {
@@ -601,7 +605,8 @@ export function App() {
           assetAccounts,
           monthKey,
           item.name,
-          item.institution
+          item.institution,
+          item.member
         );
         if (resolved) creditLimit = resolved.creditLimit;
       }
@@ -668,7 +673,8 @@ export function App() {
               combined,
               item.monthKey,
               item.name,
-              item.institution
+              item.institution,
+              item.member
             );
             if (resolved) {
               return { ...item, creditLimit: resolved.creditLimit };
