@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowRight, CalendarCheck2, Check, Clock, Landmark, Pencil } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ArrowRight, CalendarCheck2, Check, Clock, Landmark, Pencil, Search, X } from 'lucide-react';
 import {
   AssetSnapshotSummary,
   CategoryTag,
@@ -58,16 +58,26 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onNavigateAssets,
   onSelectMonth,
 }) => {
-  const tagMap = new Map(tags.map((t) => [t.id, t]));
+  const [entrySearch, setEntrySearch] = useState('');
+  const tagMap = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
   const missingTotal = missingTemplatesForMonth.reduce((acc, t) => acc + t.amount, 0);
 
   const pendingFixed = scopedEntries
     .filter((e) => e.type === 'fixed_expense' && e.status === 'pending')
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const recentEntries = [...scopedEntries]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 8);
+  const recentEntries = useMemo(() => {
+    const q = entrySearch.trim().toLowerCase();
+    const sorted = [...scopedEntries].sort((a, b) => b.date.localeCompare(a.date));
+    if (!q) return sorted.slice(0, 8);
+    return sorted
+      .filter((e) => {
+        const tagName = tagMap.get(e.categoryId)?.name || '';
+        const hay = [e.title, tagName, e.member, e.notes || '', e.date].join(' ').toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, 20);
+  }, [scopedEntries, entrySearch, tagMap]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -186,7 +196,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               {assetSummary.monthKey} 月底家庭资产借贷盘点
             </div>
             <div className="text-xs text-slate-500 mt-0.5">
-              统计储蓄卡、货币基金、积存金、股票，及借贷与信用卡支出额度
+              统计储蓄卡、货币基金、积存金、股票、借出及应收款，及借贷与信用卡支出额度
             </div>
           </div>
         </div>
@@ -325,7 +335,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
 
         <div className="xl:col-span-7 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
-          <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div>
               <h3 className="font-display text-sm font-semibold text-slate-900">
                 近期收支明细
@@ -334,30 +344,67 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 {report.periodLabel} 已登记的收入与硬性开支
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onNavigateReports}
-              className="min-h-[36px] inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-800 whitespace-nowrap"
-            >
-              <span>完整报表</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2.5">
+              {scopedEntries.length > 0 && (
+                <div className="relative flex-1 sm:w-52">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={entrySearch}
+                    onChange={(e) => setEntrySearch(e.target.value)}
+                    placeholder="检索账目名称/分类/成员..."
+                    className="w-full h-9 sm:h-8 pl-8 pr-7 text-sm sm:text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:border-teal-600"
+                  />
+                  {entrySearch && (
+                    <button
+                      type="button"
+                      onClick={() => setEntrySearch('')}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
+                      aria-label="清空检索"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={onNavigateReports}
+                className="min-h-[36px] inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-800 whitespace-nowrap shrink-0"
+              >
+                <span>完整报表</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {recentEntries.length === 0 ? (
-            <div className="p-8 sm:p-10 text-center flex-1 flex flex-col items-center justify-center">
-              <p className="text-sm font-medium text-slate-700">当前周期尚无收支记录</p>
-              <p className="text-xs text-slate-500 mt-1 mb-4">
-                点击右上角「记一笔」手工录入，或在菜单中导入 Excel 账本数据
-              </p>
-              <button
-                type="button"
-                onClick={onOpenAddEntry}
-                className="min-h-[42px] sm:min-h-[36px] px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors cursor-pointer"
-              >
-                登记第一笔记录
-              </button>
-            </div>
+            scopedEntries.length > 0 && entrySearch.trim() ? (
+              <div className="p-8 text-center flex-1 flex flex-col items-center justify-center gap-2">
+                <p className="text-xs text-slate-500">未找到包含「{entrySearch.trim()}」的收支记录</p>
+                <button
+                  type="button"
+                  onClick={() => setEntrySearch('')}
+                  className="text-xs font-medium text-teal-700 hover:text-teal-800"
+                >
+                  清空检索
+                </button>
+              </div>
+            ) : (
+              <div className="p-8 sm:p-10 text-center flex-1 flex flex-col items-center justify-center">
+                <p className="text-sm font-medium text-slate-700">当前周期尚无收支记录</p>
+                <p className="text-xs text-slate-500 mt-1 mb-4">
+                  点击右上角「记一笔」手工录入，或在菜单中导入 Excel 账本数据
+                </p>
+                <button
+                  type="button"
+                  onClick={onOpenAddEntry}
+                  className="min-h-[42px] sm:min-h-[36px] px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors cursor-pointer"
+                >
+                  登记第一笔记录
+                </button>
+              </div>
+            )
           ) : (
             <>
               {/* Mobile Card List */}

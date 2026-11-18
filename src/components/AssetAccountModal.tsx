@@ -233,7 +233,7 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  货币资产（储蓄/货基/金/股）
+                  货币资产 / 借出应收款
                 </button>
                 <button
                   type="button"
@@ -281,6 +281,16 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                     </option>
                   ))}
                 </select>
+                {category === '借出及应收款' && (
+                  <p className="text-[11px] text-teal-700 mt-1">
+                    用于登记借给亲友/他人的钱、待收回欠款或押金，将计入家庭资产总额。
+                  </p>
+                )}
+                {category === '私人及亲友借贷' && (
+                  <p className="text-[11px] text-amber-700 mt-1">
+                    此处仅登记「向他人借入待还」的欠款；若是「借给别人的钱」，请切换上方为「货币资产 / 借出应收款 → 借出及应收款」。
+                  </p>
+                )}
               </div>
             </div>
 
@@ -336,9 +346,13 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={
-                    direction === 'asset'
-                      ? '如：招行储蓄卡、余额宝、华泰证券'
-                      : '如：招行信用卡账单、车贷分期余额'
+                    category === '借出及应收款'
+                      ? '如：借给张三周转款、租房押金'
+                      : direction === 'asset'
+                        ? '如：招行储蓄卡、余额宝、华泰证券'
+                        : category === '私人及亲友借贷'
+                          ? '如：向亲友借款待还'
+                          : '如：招行信用卡账单、车贷分期余额'
                   }
                   className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
                 />
@@ -346,14 +360,22 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
 
               <div>
                 <label htmlFor="asset-inst" className="block text-xs font-medium text-slate-600 mb-1.5">
-                  所属银行 / 平台机构
+                  {category === '借出及应收款'
+                    ? '借款对象 / 对方姓名'
+                    : category === '私人及亲友借贷'
+                      ? '出借方 / 亲友姓名'
+                      : '所属银行 / 平台机构'}
                 </label>
                 <input
                   id="asset-inst"
                   type="text"
                   value={institution}
                   onChange={(e) => setInstitution(e.target.value)}
-                  placeholder="如：招商银行、支付宝、华泰证券"
+                  placeholder={
+                    category === '借出及应收款' || category === '私人及亲友借贷'
+                      ? '如：张三、亲戚、个人'
+                      : '如：招商银行、支付宝、华泰证券'
+                  }
                   className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
                 />
               </div>
@@ -362,11 +384,13 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="asset-amount" className="block text-xs font-medium text-slate-600 mb-1.5">
-                  {direction === 'asset'
-                    ? '月底账户余额 / 市值（元）'
-                    : isCreditCard
-                      ? '信用卡已用待还额度（元）'
-                      : '期末借贷待还余额（元）'}
+                  {category === '借出及应收款'
+                    ? '待收回借出金额（元）'
+                    : direction === 'asset'
+                      ? '月底账户余额 / 市值（元）'
+                      : isCreditCard
+                        ? '信用卡已用待还额度（元）'
+                        : '期末借贷待还余额（元）'}
                 </label>
                 <div className="flex items-center gap-1.5">
                   <input

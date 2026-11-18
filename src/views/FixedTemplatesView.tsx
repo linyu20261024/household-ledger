@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { CalendarCheck2, CopyCheck, FileSpreadsheet, Pencil, Plus, Power, Trash2, Upload } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { CalendarCheck2, CopyCheck, FileSpreadsheet, Pencil, Plus, Power, Search, Trash2, Upload, X } from 'lucide-react';
+import { DEFAULT_MEMBERS } from '../data/seedData';
 import { CategoryTag, FixedExpenseTemplate } from '../types/ledger';
 import { formatCurrency } from '../utils/formatters';
 
@@ -36,13 +37,33 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
 }) => {
   const [targetMonth, setTargetMonth] = useState(selectedMonth);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [memberFilter, setMemberFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
 
-  const tagMap = new Map(tags.map((t) => [t.id, t]));
+  const tagMap = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
   const activeTemplates = templates.filter((t) => t.active);
   const monthlyBaseline = activeTemplates.reduce((acc, t) => acc + t.amount, 0);
   const annualBaseline = monthlyBaseline * 12;
 
-  const sortedTemplates = [...templates].sort((a, b) => a.dueDay - b.dueDay);
+  const sortedTemplates = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return [...templates]
+      .filter((t) => {
+        if (memberFilter !== 'all' && t.member !== memberFilter) return false;
+        if (statusFilter === 'active' && !t.active) return false;
+        if (statusFilter === 'paused' && t.active) return false;
+        if (q) {
+          const tagName = tagMap.get(t.categoryId)?.name || '';
+          const hay = [t.title, tagName, t.member, t.notes || ''].join(' ').toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => a.dueDay - b.dueDay);
+  }, [templates, searchQuery, memberFilter, statusFilter, tagMap]);
+
+  const hasFilter = searchQuery.trim() !== '' || memberFilter !== 'all' || statusFilter !== 'all';
 
   const handleGenerateMonth = () => {
     const added = onGenerateForMonth(targetMonth);
@@ -169,22 +190,91 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
         )}
       </section>
 
-      {/* Templates List (Mobile Cards + Desktop Table) */}
+      {/* Templates List (Search + Mobile Cards + Desktop Table) */}
       <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        {sortedTemplates.length === 0 ? (
-          <div className="p-10 sm:p-12 text-center">
-            <p className="text-sm font-medium text-slate-700">尚未建立每月固定开支模板</p>
-            <p className="text-xs text-slate-500 mt-1 mb-4">
-              添加房贷、物业、学费、保险等固定月供项目，即可每月自动登记
-            </p>
-            <button
-              type="button"
-              onClick={onOpenAddTemplate}
-              className="min-h-[42px] sm:min-h-[36px] px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors"
-            >
-              添加第一项固定开支
-            </button>
+        {templates.length > 0 && (
+          <div className="p-3.5 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center gap-2.5 no-print">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="搜索固定开支名称、分类标签、成员或备注..."
+                className="w-full h-10 sm:h-9 pl-9 pr-8 text-base sm:text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:border-teal-600"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
+                  aria-label="清空搜索"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:flex items-center gap-2">
+              <select
+                value={memberFilter}
+                onChange={(e) => setMemberFilter(e.target.value)}
+                aria-label="按责任成员筛选"
+                className="h-10 sm:h-9 px-3 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+              >
+                <option value="all">全部成员</option>
+                {DEFAULT_MEMBERS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'paused')}
+                aria-label="按启用状态筛选"
+                className="h-10 sm:h-9 px-3 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+              >
+                <option value="all">全部状态</option>
+                <option value="active">仅启用中</option>
+                <option value="paused">仅已暂停</option>
+              </select>
+            </div>
           </div>
+        )}
+
+        {sortedTemplates.length === 0 ? (
+          templates.length > 0 && hasFilter ? (
+            <div className="p-8 sm:p-10 text-center space-y-2">
+              <p className="text-xs text-slate-500">没有符合当前搜索或筛选条件的固定开支模板</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setMemberFilter('all');
+                  setStatusFilter('all');
+                }}
+                className="text-xs font-medium text-teal-700 hover:text-teal-800"
+              >
+                清空筛选条件
+              </button>
+            </div>
+          ) : (
+            <div className="p-10 sm:p-12 text-center">
+              <p className="text-sm font-medium text-slate-700">尚未建立每月固定开支模板</p>
+              <p className="text-xs text-slate-500 mt-1 mb-4">
+                添加房贷、物业、学费、保险等固定月供项目，即可每月自动登记
+              </p>
+              <button
+                type="button"
+                onClick={onOpenAddTemplate}
+                className="min-h-[42px] sm:min-h-[36px] px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors"
+              >
+                添加第一项固定开支
+              </button>
+            </div>
+          )
         ) : (
           <>
             {/* Mobile Card List */}

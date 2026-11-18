@@ -1029,7 +1029,7 @@ export const AssetAllocationChart: React.FC<AssetAllocationChartProps> = ({
           <h3 className="font-display text-sm font-semibold text-slate-900">
             {monthKey} 货币资产配置结构
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5">储蓄卡、货币基金、积存金与股票占比</p>
+          <p className="text-xs text-slate-500 mt-0.5">储蓄卡、货币基金、积存金、股票及借出应收占比</p>
         </div>
 
         {assetsByCategory.length > 0 && (

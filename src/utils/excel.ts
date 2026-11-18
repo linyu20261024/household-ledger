@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import type * as XLSXTypes from 'xlsx';
 import { ASSET_CATEGORY_META, DEFAULT_MEMBERS, TAG_COLOR_PALETTE } from '../data/seedData';
 import {
   AccountDirection,
@@ -34,6 +34,8 @@ function normalizeAssetCategory(
   if (cleaned.includes('积存金') || cleaned.includes('黄金')) return '积存金';
   if (cleaned.includes('股票') || cleaned.includes('证券') || cleaned.includes('基金'))
     return '股票账户';
+  if (cleaned.includes('借出') || cleaned.includes('应收') || cleaned.includes('债权') || cleaned.includes('押金'))
+    return '借出及应收款';
   if (cleaned.includes('信用卡')) return '信用卡支出额度';
   if (cleaned.includes('亲友') || cleaned.includes('私人')) return '私人及亲友借贷';
   if (cleaned.includes('消费贷') || cleaned.includes('借贷') || cleaned.includes('分期'))
@@ -41,9 +43,9 @@ function normalizeAssetCategory(
   return direction === 'asset' ? '其他货币资产' : '其他借贷账务';
 }
 
-function normalizeDateString(raw: unknown): string {
-  if (typeof raw === 'number' && Number.isFinite(raw)) {
-    const parsed = XLSX.SSF.parse_date_code(raw);
+function normalizeDateString(raw: unknown, ssf?: typeof XLSXTypes.SSF): string {
+  if (typeof raw === 'number' && Number.isFinite(raw) && ssf) {
+    const parsed = ssf.parse_date_code(raw);
     if (parsed && parsed.y && parsed.m && parsed.d) {
       return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
     }
@@ -56,9 +58,9 @@ function normalizeDateString(raw: unknown): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function normalizeMonthString(raw: unknown): string {
-  if (typeof raw === 'number' && Number.isFinite(raw)) {
-    const parsed = XLSX.SSF.parse_date_code(raw);
+function normalizeMonthString(raw: unknown, ssf?: typeof XLSXTypes.SSF): string {
+  if (typeof raw === 'number' && Number.isFinite(raw) && ssf) {
+    const parsed = ssf.parse_date_code(raw);
     if (parsed && parsed.y && parsed.m) {
       return `${parsed.y}-${String(parsed.m).padStart(2, '0')}`;
     }
@@ -78,7 +80,7 @@ function toNumber(raw: unknown): number {
   return Number.isFinite(num) ? num : 0;
 }
 
-export function exportFullWorkbookToExcel(params: {
+export async function exportFullWorkbookToExcel(params: {
   filename: string;
   report: SummaryReport;
   entries: LedgerEntry[];
@@ -86,6 +88,7 @@ export function exportFullWorkbookToExcel(params: {
   assetAccounts: AssetAccountItem[];
   tags: CategoryTag[];
 }) {
+  const XLSX = await import('xlsx');
   const { filename, report, entries, templates, assetAccounts, tags } = params;
   const tagMap = new Map(tags.map((t) => [t.id, t.name]));
   const wb = XLSX.utils.book_new();
@@ -279,11 +282,12 @@ export function exportFullWorkbookToExcel(params: {
   XLSX.writeFile(wb, filename);
 }
 
-export function exportAssetSnapshotToExcel(
+export async function exportAssetSnapshotToExcel(
   filename: string,
   monthLabel: string,
   assets: AssetAccountItem[]
 ) {
+  const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
   const totalAssets = assets
     .filter((a) => a.direction === 'asset')
@@ -332,7 +336,8 @@ export function exportAssetSnapshotToExcel(
   XLSX.writeFile(wb, filename);
 }
 
-export function downloadImportTemplateExcel() {
+export async function downloadImportTemplateExcel() {
+  const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
 
   const wsEntries = XLSX.utils.json_to_sheet([
@@ -488,6 +493,7 @@ export async function parseExcelWorkbook(
   file: File,
   existingTags: CategoryTag[]
 ): Promise<ParsedExcelResult> {
+  const XLSX = await import('xlsx');
   const buffer = await file.arrayBuffer();
   const wb = XLSX.read(buffer, { type: 'array' });
 
@@ -560,12 +566,18 @@ export async function parseExcelWorkbook(
         if (!name) return;
         const rawDir = String(getField(row, ['大类', '资产借贷类型', '资产负债类型', '方向']) ?? '');
         const rawSub = String(getField(row, ['细分类型', '资产类型', '类别']) ?? '');
+        const isReceivable =
+          rawSub.includes('借出') ||
+          rawSub.includes('应收') ||
+          rawSub.includes('债权') ||
+          rawSub.includes('押金');
         const isLiab =
-          rawDir.includes('负债') ||
-          rawDir.includes('借贷') ||
-          rawDir.includes('信用卡') ||
-          rawSub.includes('信用卡') ||
-          rawSub.includes('借贷');
+          !isReceivable &&
+          (rawDir.includes('负债') ||
+            rawDir.includes('借贷') ||
+            rawDir.includes('信用卡') ||
+            rawSub.includes('信用卡') ||
+            rawSub.includes('借贷'));
         const direction: AccountDirection = isLiab ? 'liability' : 'asset';
         const category = normalizeAssetCategory(rawSub, direction);
         const amount = toNumber(
@@ -580,7 +592,7 @@ export async function parseExcelWorkbook(
         const creditLimitVal = toNumber(
           getField(row, ['信用卡总额度（元）', '信用卡总额度', '授信额度'])
         );
-        const monthKey = normalizeMonthString(getField(row, ['盘点月份', '月份', '日期']));
+        const monthKey = normalizeMonthString(getField(row, ['盘点月份', '月份', '日期']), XLSX.SSF);
         const institution = String(
           getField(row, ['所属机构', '机构', '银行']) ?? '未填写机构'
         ).trim();
@@ -685,7 +697,7 @@ export async function parseExcelWorkbook(
         const typeStr = String(getField(row, ['收支类型', '类型', 'type']) ?? '');
         const type: EntryType = typeStr.includes('收入') ? 'income' : 'fixed_expense';
         const catName = String(getField(row, ['分类标签', '分类', '标签']) ?? '');
-        const date = normalizeDateString(getField(row, ['日期', '发生日期', '入账日期']));
+        const date = normalizeDateString(getField(row, ['日期', '发生日期', '入账日期']), XLSX.SSF);
         const rawEntryMember = String(getField(row, ['家庭成员', '成员']) ?? '').trim();
         const member =
           rawEntryMember === '家庭共同' ? '共同账户' : rawEntryMember || DEFAULT_MEMBERS[0];

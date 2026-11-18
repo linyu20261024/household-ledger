@@ -56,10 +56,17 @@
           }
         });
         setTimeout(function () {
+          if (mounted) return;
+          var statusEl = document.getElementById('app-boot-status');
+          if (statusEl) {
+            statusEl.textContent = '网络较慢，正在继续加载页面资源…';
+          }
+        }, 8000);
+        setTimeout(function () {
           if (!mounted) {
             showFallback('脚本资源加载超时，可能是网络波动或缓存了旧版本文件，请点击下方按钮重试。');
           }
-        }, 12000);
+        }, 30000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

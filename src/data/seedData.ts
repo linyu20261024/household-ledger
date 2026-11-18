@@ -31,10 +31,11 @@ export const ASSET_CATEGORY_META: {
   { category: '货币基金', direction: 'asset', color: '#0284C7', description: '余额宝、零钱通、现金理财' },
   { category: '积存金', direction: 'asset', color: '#D97706', description: '银行积存金、黄金定投市值' },
   { category: '股票账户', direction: 'asset', color: '#4F46E5', description: '证券股票账户、场内外基金' },
+  { category: '借出及应收款', direction: 'asset', color: '#0D9488', description: '借给亲友/他人的钱、待收回欠款或押金' },
   { category: '其他货币资产', direction: 'asset', color: '#475569', description: '公积金可提取额、现金等' },
   { category: '信用卡支出额度', direction: 'liability', color: '#DC2626', description: '信用卡已用待还账单额度' },
   { category: '消费与信用借贷', direction: 'liability', color: '#EA580C', description: '银行消费贷、分期未还余额' },
-  { category: '私人及亲友借贷', direction: 'liability', color: '#BE123C', description: '亲友拆借或短期借款' },
+  { category: '私人及亲友借贷', direction: 'liability', color: '#BE123C', description: '向亲友借入的待还欠款（我方欠款）' },
   { category: '其他借贷账务', direction: 'liability', color: '#64748B', description: '其他应付款项与负债' },
 ];
 

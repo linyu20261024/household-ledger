@@ -5,12 +5,13 @@ import {
   Download,
   Pencil,
   Plus,
+  Search,
   Trash2,
   Upload,
   X,
 } from 'lucide-react';
 import { AssetAllocationChart, AssetTrendChart } from '../components/Charts';
-import { ASSET_CATEGORY_META } from '../data/seedData';
+import { ASSET_CATEGORY_META, DEFAULT_MEMBERS } from '../data/seedData';
 import {
   AccountDirection,
   AssetAccountItem,
@@ -55,27 +56,55 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
   const [inlineVal, setInlineVal] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [memberFilter, setMemberFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   const metaColorMap = useMemo(
     () => new Map(ASSET_CATEGORY_META.map((m) => [m.category, m.color])),
     []
   );
 
+  const hasActiveFilter =
+    searchQuery.trim() !== '' || memberFilter !== 'all' || categoryFilter !== 'all';
+
+  const matchesFilter = (item: AssetAccountItem): boolean => {
+    if (memberFilter !== 'all' && item.member !== memberFilter) return false;
+    if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      const hay = [
+        item.name,
+        item.institution,
+        item.category,
+        item.member,
+        item.notes || '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  };
+
   const assetList = useMemo(
     () =>
       monthItems
-        .filter((a) => a.direction === 'asset')
+        .filter((a) => a.direction === 'asset' && matchesFilter(a))
         .sort((a, b) => b.amount - a.amount),
-    [monthItems]
+    [monthItems, searchQuery, memberFilter, categoryFilter]
   );
 
   const liabilityList = useMemo(
     () =>
       monthItems
-        .filter((a) => a.direction === 'liability')
+        .filter((a) => a.direction === 'liability' && matchesFilter(a))
         .sort((a, b) => b.amount - a.amount),
-    [monthItems]
+    [monthItems, searchQuery, memberFilter, categoryFilter]
   );
+
+  const totalMonthAssetsCount = monthItems.filter((a) => a.direction === 'asset').length;
+  const totalMonthLiabilitiesCount = monthItems.filter((a) => a.direction === 'liability').length;
 
   const startInlineEdit = (item: AssetAccountItem) => {
     setInlineEditId(item.id);
@@ -135,7 +164,7 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
             {selectedMonth} 月底家庭资产借贷统计
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            统计各银行储蓄卡余额、货币基金、积存金、股票账户，以及借贷账务与信用卡已用支出额度
+            统计各银行储蓄卡余额、货币基金、积存金、股票账户、借出及应收款，以及借贷账务与信用卡已用支出额度
           </p>
         </div>
 
@@ -286,12 +315,101 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
         </div>
       </section>
 
+      {/* Search & Filter Bar for Quick Lookup & Editing */}
+      {monthItems.length > 0 && (
+        <section className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 space-y-2.5 no-print">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="搜索账户名称、银行/借款对象、分类、成员或备注..."
+                className="w-full h-10 sm:h-9 pl-9 pr-8 text-base sm:text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:border-teal-600"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
+                  aria-label="清空搜索"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:flex items-center gap-2">
+              <select
+                value={memberFilter}
+                onChange={(e) => setMemberFilter(e.target.value)}
+                aria-label="按归属成员筛选"
+                className="h-10 sm:h-9 px-3 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+              >
+                <option value="all">全部成员</option>
+                {DEFAULT_MEMBERS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                aria-label="按资产借贷类别筛选"
+                className="h-10 sm:h-9 px-3 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+              >
+                <option value="all">全部类别</option>
+                <optgroup label="货币资产 / 借出应收">
+                  {ASSET_CATEGORY_META.filter((m) => m.direction === 'asset').map((m) => (
+                    <option key={m.category} value={m.category}>
+                      {m.category}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="借贷与信用卡">
+                  {ASSET_CATEGORY_META.filter((m) => m.direction === 'liability').map((m) => (
+                    <option key={m.category} value={m.category}>
+                      {m.category}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          {hasActiveFilter && (
+            <div className="flex items-center justify-between gap-2 text-xs text-slate-500 pt-0.5">
+              <span>
+                已筛出 <strong className="text-teal-700 font-mono-num">{assetList.length}</strong> /{' '}
+                {totalMonthAssetsCount} 项资产，{' '}
+                <strong className="text-slate-900 font-mono-num">{liabilityList.length}</strong> /{' '}
+                {totalMonthLiabilitiesCount} 项借贷与信用
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setMemberFilter('all');
+                  setCategoryFilter('all');
+                }}
+                className="text-xs font-medium text-teal-700 hover:text-teal-800 whitespace-nowrap"
+              >
+                清空筛选
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Monetary Assets Section */}
       <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-display text-sm font-semibold text-slate-900">
-              一、货币资产账户明细（储蓄卡 / 货币基金 / 积存金 / 股票账户）
+              一、货币资产与应收账户明细（储蓄卡 / 货基 / 积存金 / 股票 / 借出款）
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               点击金额即可快捷修改月底余额
@@ -315,32 +433,38 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
         </div>
 
         {assetList.length === 0 ? (
-          <div className="p-8 sm:p-10 text-center">
-            <p className="text-sm font-medium text-slate-700">
-              {selectedMonth} 尚无货币资产盘点记录
-            </p>
-            <p className="text-xs text-slate-500 mt-1 mb-4">
-              可点击「登记货币资产」，或继承前后已登记月份的账户结构与信用卡额度
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {copySourceMonth && (
+          totalMonthAssetsCount > 0 && hasActiveFilter ? (
+            <div className="p-8 text-center text-xs text-slate-500">
+              没有符合当前搜索或筛选条件的货币资产账户
+            </div>
+          ) : (
+            <div className="p-8 sm:p-10 text-center">
+              <p className="text-sm font-medium text-slate-700">
+                {selectedMonth} 尚无货币资产盘点记录
+              </p>
+              <p className="text-xs text-slate-500 mt-1 mb-4">
+                可点击「登记货币资产」，或继承前后已登记月份的账户结构与信用卡额度
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {copySourceMonth && (
+                  <button
+                    type="button"
+                    onClick={handleCopyAdjacent}
+                    className="h-10 px-4 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg"
+                  >
+                    {copyActionLabel}
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={handleCopyAdjacent}
-                  className="h-10 px-4 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg"
+                  onClick={() => onOpenAddAccount('asset')}
+                  className="h-10 px-4 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg cursor-pointer"
                 >
-                  {copyActionLabel}
+                  新增货币资产
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onOpenAddAccount('asset')}
-                className="h-10 px-4 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg cursor-pointer"
-              >
-                新增货币资产
-              </button>
+              </div>
             </div>
-          </div>
+          )
         ) : (
           <>
             {/* Mobile Cards */}
@@ -572,18 +696,24 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
         </div>
 
         {liabilityList.length === 0 ? (
-          <div className="p-8 sm:p-10 text-center">
-            <p className="text-sm font-medium text-slate-700">
-              {selectedMonth} 暂无借贷或信用卡待还记录
-            </p>
-            <button
-              type="button"
-              onClick={() => onOpenAddAccount('liability')}
-              className="mt-3 h-10 px-4 text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
-            >
-              登记借贷 / 信用卡额度
-            </button>
-          </div>
+          totalMonthLiabilitiesCount > 0 && hasActiveFilter ? (
+            <div className="p-8 text-center text-xs text-slate-500">
+              没有符合当前搜索或筛选条件的借贷与信用卡账户
+            </div>
+          ) : (
+            <div className="p-8 sm:p-10 text-center">
+              <p className="text-sm font-medium text-slate-700">
+                {selectedMonth} 暂无借贷或信用卡待还记录
+              </p>
+              <button
+                type="button"
+                onClick={() => onOpenAddAccount('liability')}
+                className="mt-3 h-10 px-4 text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+              >
+                登记借贷 / 信用卡额度
+              </button>
+            </div>
+          )
         ) : (
           <>
             {/* Mobile Cards */}
