@@ -2,9 +2,9 @@
 
 @layer base {
   :root {
-    --font-display: "Plus Jakarta Sans", "Noto Sans SC", system-ui, sans-serif;
-    --font-sans: "DM Sans", "Noto Sans SC", system-ui, sans-serif;
-    --font-mono: "JetBrains Mono", "Noto Sans SC", monospace;
+    --font-display: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Menlo", "Monaco", "Consolas", "PingFang SC", monospace;
   }
 
   html {

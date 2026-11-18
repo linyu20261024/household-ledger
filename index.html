@@ -10,13 +10,58 @@
     <meta property="og:description" content="家庭收入与每月固定硬性支出管理平台，支持固定开支自动登记、分类标签管理、收支汇总报表自动生成及按月/年导出可视化图表。" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-teal-100 selection:text-teal-900">
-    <div id="root"></div>
+    <div id="root">
+      <div
+        id="app-boot-loading"
+        style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;color:#475569;text-align:center;"
+      >
+        <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:6px;">家计账本</div>
+        <div id="app-boot-status" style="font-size:13px;color:#64748b;">正在加载页面资源…</div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var mounted = false;
+        window.__APP_MOUNTED__ = function () {
+          mounted = true;
+        };
+        function showFallback(reason) {
+          if (mounted) return;
+          var root = document.getElementById('root');
+          if (!root || !document.getElementById('app-boot-loading')) return;
+          root.innerHTML =
+            '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;background:#f8fafc;">' +
+            '<div style="max-width:400px;width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;color:#0f172a;">' +
+            '<div style="font-size:16px;font-weight:700;margin-bottom:8px;">页面加载遇到问题</div>' +
+            '<div style="font-size:13px;color:#475569;line-height:1.6;margin-bottom:14px;">' +
+            reason +
+            '</div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button onclick="location.reload()" style="flex:1;min-height:40px;padding:8px 14px;border:none;border-radius:8px;background:#0f766e;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">刷新重试</button>' +
+            '<button onclick="try{localStorage.removeItem(\'household_ledger_entries_v2\');localStorage.removeItem(\'household_ledger_templates_v2\');localStorage.removeItem(\'household_ledger_tags_v2\');localStorage.removeItem(\'household_ledger_assets_v2\');}catch(e){}location.reload()" style="flex:1;min-height:40px;padding:8px 14px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-size:13px;font-weight:500;cursor:pointer;">清理缓存并刷新</button>' +
+            '</div></div></div>';
+        }
+        window.addEventListener('error', function (ev) {
+          if (!mounted) {
+            var msg = (ev && ev.message) ? String(ev.message) : '脚本加载失败或浏览器版本过旧';
+            showFallback('检测到加载异常：' + msg.replace(/</g, '&lt;') + '。请尝试刷新或使用系统浏览器打开。');
+          }
+        });
+        window.addEventListener('unhandledrejection', function (ev) {
+          if (!mounted) {
+            var msg = (ev && ev.reason && ev.reason.message) ? String(ev.reason.message) : '页面初始化失败';
+            showFallback('页面初始化异常：' + msg.replace(/</g, '&lt;') + '。');
+          }
+        });
+        setTimeout(function () {
+          if (!mounted) {
+            showFallback('脚本资源加载超时，可能是网络波动或缓存了旧版本文件，请点击下方按钮重试。');
+          }
+        }, 12000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

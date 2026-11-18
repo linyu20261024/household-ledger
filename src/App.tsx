@@ -58,46 +58,121 @@ function clampDateForMonth(monthKey: string, dueDay: number): string {
   return `${monthKey}-${safeDay}`;
 }
 
+function safeReadArray(key: string): unknown[] | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadStoredEntries(): LedgerEntry[] {
+  const arr = safeReadArray(STORAGE_KEYS.entries);
+  if (!arr) return [];
+  return arr
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    .map((item) => ({
+      id: typeof item.id === 'string' && item.id ? item.id : createId('entry'),
+      title: typeof item.title === 'string' ? item.title : '未命名项目',
+      amount: Number.isFinite(Number(item.amount)) ? Number(item.amount) : 0,
+      type: item.type === 'income' ? ('income' as const) : ('fixed_expense' as const),
+      categoryId: typeof item.categoryId === 'string' ? item.categoryId : '',
+      date:
+        typeof item.date === 'string' && /^\d{4}-\d{2}/.test(item.date)
+          ? item.date
+          : new Date().toISOString().slice(0, 10),
+      member: typeof item.member === 'string' && item.member ? item.member : '先生',
+      status: item.status === 'pending' ? ('pending' as const) : ('paid' as const),
+      templateId: typeof item.templateId === 'string' ? item.templateId : undefined,
+      notes: typeof item.notes === 'string' ? item.notes : undefined,
+      createdAt:
+        typeof item.createdAt === 'string' && item.createdAt
+          ? item.createdAt
+          : new Date().toISOString(),
+    }));
+}
+
+function loadStoredTemplates(): FixedExpenseTemplate[] {
+  const arr = safeReadArray(STORAGE_KEYS.templates);
+  if (!arr) return [];
+  return arr
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    .map((item) => ({
+      id: typeof item.id === 'string' && item.id ? item.id : createId('tpl'),
+      title: typeof item.title === 'string' ? item.title : '固定开支项',
+      amount: Number.isFinite(Number(item.amount)) ? Number(item.amount) : 0,
+      categoryId: typeof item.categoryId === 'string' ? item.categoryId : '',
+      dueDay:
+        Number.isFinite(Number(item.dueDay)) && Number(item.dueDay) >= 1 && Number(item.dueDay) <= 31
+          ? Math.round(Number(item.dueDay))
+          : 10,
+      member: typeof item.member === 'string' && item.member ? item.member : '先生',
+      active: typeof item.active === 'boolean' ? item.active : true,
+      notes: typeof item.notes === 'string' ? item.notes : undefined,
+    }));
+}
+
+function loadStoredTags(): CategoryTag[] {
+  const arr = safeReadArray(STORAGE_KEYS.tags);
+  if (!arr || arr.length === 0) return DEFAULT_TAGS;
+  const sanitized = arr
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    .map((item) => ({
+      id: typeof item.id === 'string' && item.id ? item.id : createId('tag'),
+      name: typeof item.name === 'string' && item.name ? item.name : '未命名标签',
+      type: item.type === 'income' ? ('income' as const) : ('fixed_expense' as const),
+      color: typeof item.color === 'string' && item.color ? item.color : '#64748B',
+      isDefault: Boolean(item.isDefault),
+    }));
+  return sanitized.length > 0 ? sanitized : DEFAULT_TAGS;
+}
+
+function loadStoredAssets(): AssetAccountItem[] {
+  const arr = safeReadArray(STORAGE_KEYS.assets);
+  if (!arr) return [];
+  const fallbackMonth = new Date().toISOString().slice(0, 7);
+  return arr
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    .map((item) => {
+      const direction: AccountDirection = item.direction === 'liability' ? 'liability' : 'asset';
+      const rawLimit = Number(item.creditLimit);
+      return {
+        id: typeof item.id === 'string' && item.id ? item.id : createId('asset'),
+        monthKey:
+          typeof item.monthKey === 'string' && /^\d{4}-\d{2}$/.test(item.monthKey)
+            ? item.monthKey
+            : fallbackMonth,
+        direction,
+        category: (typeof item.category === 'string' && item.category
+          ? item.category
+          : direction === 'asset'
+            ? '储蓄卡余额'
+            : '信用卡支出额度') as AssetAccountItem['category'],
+        name: typeof item.name === 'string' ? item.name : '未命名账户',
+        institution:
+          typeof item.institution === 'string' && item.institution
+            ? item.institution
+            : '未填写机构',
+        amount: Number.isFinite(Number(item.amount)) ? Number(item.amount) : 0,
+        creditLimit: Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : undefined,
+        member: typeof item.member === 'string' && item.member ? item.member : '先生',
+        notes: typeof item.notes === 'string' ? item.notes : undefined,
+        updatedAt:
+          typeof item.updatedAt === 'string' && item.updatedAt
+            ? item.updatedAt
+            : new Date().toISOString(),
+      };
+    });
+}
+
 export function App() {
-  const [entries, setEntries] = useState<LedgerEntry[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.entries);
-      if (raw) return JSON.parse(raw) as LedgerEntry[];
-    } catch {
-      // ignore storage errors
-    }
-    return [];
-  });
-
-  const [templates, setTemplates] = useState<FixedExpenseTemplate[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.templates);
-      if (raw) return JSON.parse(raw) as FixedExpenseTemplate[];
-    } catch {
-      // ignore storage errors
-    }
-    return [];
-  });
-
-  const [tags, setTags] = useState<CategoryTag[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.tags);
-      if (raw) return JSON.parse(raw) as CategoryTag[];
-    } catch {
-      // ignore storage errors
-    }
-    return DEFAULT_TAGS;
-  });
-
-  const [assetAccounts, setAssetAccounts] = useState<AssetAccountItem[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.assets);
-      if (raw) return JSON.parse(raw) as AssetAccountItem[];
-    } catch {
-      // ignore storage errors
-    }
-    return [];
-  });
+  const [entries, setEntries] = useState<LedgerEntry[]>(loadStoredEntries);
+  const [templates, setTemplates] = useState<FixedExpenseTemplate[]>(loadStoredTemplates);
+  const [tags, setTags] = useState<CategoryTag[]>(loadStoredTags);
+  const [assetAccounts, setAssetAccounts] = useState<AssetAccountItem[]>(loadStoredAssets);
 
   useEffect(() => {
     try {
@@ -154,10 +229,14 @@ export function App() {
   const availableYears = useMemo(() => {
     const set = new Set<string>(['2025', '2026', '2027']);
     for (const e of entries) {
-      set.add(e.date.slice(0, 4));
+      if (typeof e.date === 'string' && e.date.length >= 4) {
+        set.add(e.date.slice(0, 4));
+      }
     }
     for (const a of assetAccounts) {
-      set.add(a.monthKey.slice(0, 4));
+      if (typeof a.monthKey === 'string' && a.monthKey.length >= 4) {
+        set.add(a.monthKey.slice(0, 4));
+      }
     }
     set.add(selectedYear);
     return Array.from(set).sort((a, b) => b.localeCompare(a));

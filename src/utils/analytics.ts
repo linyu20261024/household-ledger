@@ -21,7 +21,7 @@ export function filterEntriesByPeriod(
   yearKey: string
 ): LedgerEntry[] {
   const prefix = periodMode === 'month' ? monthKey : `${yearKey}-`;
-  return entries.filter((e) => e.date.startsWith(prefix));
+  return entries.filter((e) => typeof e?.date === 'string' && e.date.startsWith(prefix));
 }
 
 export function computeSummaryReport(
@@ -162,10 +162,10 @@ export function computeAnnualTrend(
     let expense = 0;
 
     for (const entry of allEntries) {
-      if (!entry.date.startsWith(monthKey)) continue;
+      if (typeof entry?.date !== 'string' || !entry.date.startsWith(monthKey)) continue;
       if (allowed && !allowed.has(entry.categoryId)) continue;
-      if (entry.type === 'income') income += entry.amount;
-      else expense += entry.amount;
+      if (entry.type === 'income') income += Number(entry.amount) || 0;
+      else expense += Number(entry.amount) || 0;
     }
 
     points.push({
@@ -337,7 +337,9 @@ export function getCreditCardProfiles(
   );
   const grouped = new Map<string, AssetAccountItem[]>();
   for (const item of cards) {
-    const key = `${item.institution.trim()}::${item.name.trim()}`;
+    const inst = (item.institution || '').trim();
+    const nm = (item.name || '').trim();
+    const key = `${inst}::${nm}`;
     const list = grouped.get(key) || [];
     list.push(item);
     grouped.set(key, list);
@@ -350,14 +352,17 @@ export function getCreditCardProfiles(
       if (aHasLimit !== bHasLimit) return bHasLimit - aHasLimit;
 
       if (targetMonthKey) {
-        const distA = Math.abs(getMonthDistance(a.monthKey, targetMonthKey));
-        const distB = Math.abs(getMonthDistance(b.monthKey, targetMonthKey));
+        const distA = Math.abs(getMonthDistance(a.monthKey || targetMonthKey, targetMonthKey));
+        const distB = Math.abs(getMonthDistance(b.monthKey || targetMonthKey, targetMonthKey));
         if (distA !== distB) return distA - distB;
         // Equidistant: prefer earlier month first
-        if (a.monthKey !== b.monthKey) return a.monthKey.localeCompare(b.monthKey);
+        if (a.monthKey !== b.monthKey) return (a.monthKey || '').localeCompare(b.monthKey || '');
       }
 
-      return b.monthKey.localeCompare(a.monthKey) || b.updatedAt.localeCompare(a.updatedAt);
+      return (
+        (b.monthKey || '').localeCompare(a.monthKey || '') ||
+        (b.updatedAt || '').localeCompare(a.updatedAt || '')
+      );
     });
     return sorted[0];
   };
@@ -367,21 +372,21 @@ export function getCreditCardProfiles(
       const best = pickBest(list);
       return {
         key,
-        name: best.name,
-        institution: best.institution,
+        name: best.name || '',
+        institution: best.institution || '',
         creditLimit: best.creditLimit && best.creditLimit > 0 ? best.creditLimit : undefined,
-        member: best.member,
-        sourceMonthKey: best.monthKey,
+        member: best.member || '先生',
+        sourceMonthKey: best.monthKey || '',
         notes: best.notes,
       };
     })
     .sort((a, b) => {
       if (targetMonthKey) {
-        const distA = Math.abs(getMonthDistance(a.sourceMonthKey, targetMonthKey));
-        const distB = Math.abs(getMonthDistance(b.sourceMonthKey, targetMonthKey));
+        const distA = Math.abs(getMonthDistance(a.sourceMonthKey || targetMonthKey, targetMonthKey));
+        const distB = Math.abs(getMonthDistance(b.sourceMonthKey || targetMonthKey, targetMonthKey));
         if (distA !== distB) return distA - distB;
       }
-      return a.institution.localeCompare(b.institution) || a.name.localeCompare(b.name);
+      return (a.institution || '').localeCompare(b.institution || '') || (a.name || '').localeCompare(b.name || '');
     });
 }
 
@@ -391,8 +396,8 @@ export function resolveCreditLimitForCard(
   name: string,
   institution: string
 ): { creditLimit: number; sourceMonthKey: string } | null {
-  const cleanName = name.trim().toLowerCase();
-  const cleanInst = institution.trim().toLowerCase();
+  const cleanName = (name || '').trim().toLowerCase();
+  const cleanInst = (institution || '').trim().toLowerCase();
   if (!cleanName && !cleanInst) return null;
 
   const candidates = allAssets.filter(
@@ -406,8 +411,8 @@ export function resolveCreditLimitForCard(
   if (candidates.length === 0) return null;
 
   const scoreMatch = (item: AssetAccountItem): number => {
-    const iName = item.name.trim().toLowerCase();
-    const iInst = item.institution.trim().toLowerCase();
+    const iName = (item.name || '').trim().toLowerCase();
+    const iInst = (item.institution || '').trim().toLowerCase();
     if (cleanName && cleanInst && iName === cleanName && iInst === cleanInst) return 3;
     if (cleanName && iName === cleanName) return 2;
     if (cleanInst && iInst === cleanInst) return 1;
@@ -430,17 +435,19 @@ export function resolveCreditLimitForCard(
   }
 
   topMatches.sort((a, b) => {
-    const distA = Math.abs(getMonthDistance(a.item.monthKey, targetMonthKey));
-    const distB = Math.abs(getMonthDistance(b.item.monthKey, targetMonthKey));
+    const distA = Math.abs(getMonthDistance(a.item.monthKey || targetMonthKey, targetMonthKey));
+    const distB = Math.abs(getMonthDistance(b.item.monthKey || targetMonthKey, targetMonthKey));
     if (distA !== distB) return distA - distB;
-    if (a.item.monthKey !== b.item.monthKey) return a.item.monthKey.localeCompare(b.item.monthKey);
-    return b.item.updatedAt.localeCompare(a.item.updatedAt);
+    if (a.item.monthKey !== b.item.monthKey) {
+      return (a.item.monthKey || '').localeCompare(b.item.monthKey || '');
+    }
+    return (b.item.updatedAt || '').localeCompare(a.item.updatedAt || '');
   });
 
   const best = topMatches[0].item;
   return {
     creditLimit: best.creditLimit as number,
-    sourceMonthKey: best.monthKey,
+    sourceMonthKey: best.monthKey || '',
   };
 }
 
