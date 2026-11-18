@@ -19,7 +19,7 @@ export const TAG_COLOR_PALETTE: { label: string; value: string }[] = [
   { label: '玫瑰棕', value: '#BE123C' },
 ];
 
-export const DEFAULT_MEMBERS = ['家庭共同', '先生', '太太', '父母'];
+export const DEFAULT_MEMBERS = ['先生', '太太', '父母', '共同账户'];
 
 export const ASSET_CATEGORY_META: {
   category: AssetCategory;
@@ -63,7 +63,7 @@ export const DEFAULT_TEMPLATES: FixedExpenseTemplate[] = [
     amount: 7650,
     categoryId: 'tag-exp-housing',
     dueDay: 10,
-    member: '家庭共同',
+    member: '共同账户',
     active: true,
     notes: '每月10日银行自动扣款',
   },
@@ -73,7 +73,7 @@ export const DEFAULT_TEMPLATES: FixedExpenseTemplate[] = [
     amount: 520,
     categoryId: 'tag-exp-utilities',
     dueDay: 5,
-    member: '家庭共同',
+    member: '共同账户',
     active: true,
     notes: '含地下车位月度管理费',
   },
@@ -93,7 +93,7 @@ export const DEFAULT_TEMPLATES: FixedExpenseTemplate[] = [
     amount: 2800,
     categoryId: 'tag-exp-edu',
     dueDay: 3,
-    member: '家庭共同',
+    member: '共同账户',
     active: true,
     notes: '每月3日统一缴纳',
   },
@@ -113,7 +113,7 @@ export const DEFAULT_TEMPLATES: FixedExpenseTemplate[] = [
     amount: 1380,
     categoryId: 'tag-exp-insurance',
     dueDay: 20,
-    member: '家庭共同',
+    member: '共同账户',
     active: true,
     notes: '年缴保费按12个月计提预留',
   },
@@ -123,7 +123,7 @@ export const DEFAULT_TEMPLATES: FixedExpenseTemplate[] = [
     amount: 2000,
     categoryId: 'tag-exp-elder',
     dueDay: 25,
-    member: '家庭共同',
+    member: '共同账户',
     active: true,
     notes: '每月25日固定转账',
   },
@@ -193,7 +193,7 @@ export function generateSeedEntries(): LedgerEntry[] {
         type: 'income',
         categoryId: 'tag-inc-bonus',
         date: `2026-01-22`,
-        member: '家庭共同',
+        member: '共同账户',
         status: 'paid',
         notes: '双方年度绩效奖金合并入账',
         createdAt: `2026-01-22T10:00:00Z`,
@@ -233,7 +233,7 @@ export function generateSeedEntries(): LedgerEntry[] {
       type: 'income',
       categoryId: 'tag-inc-invest',
       date: `${monthStr}-16`,
-      member: '家庭共同',
+      member: '共同账户',
       status: 'paid',
       notes: '家庭备付金理财收益',
       createdAt: `${monthStr}-16T12:00:00Z`,
@@ -284,7 +284,7 @@ export function generateSeedAssetAccounts(): AssetAccountItem[] {
       name: '招商银行一卡通储蓄卡',
       institution: '招商银行',
       amount: 62500 + growth * 0.45 + (m === 1 ? 18000 : 0),
-      member: '家庭共同',
+      member: '共同账户',
       notes: '家庭日常备用金与房贷归集卡',
       updatedAt,
     });
@@ -322,7 +322,7 @@ export function generateSeedAssetAccounts(): AssetAccountItem[] {
       name: '余额宝（家庭流动现金池）',
       institution: '支付宝 / 天弘基金',
       amount: 54000 + m * 1900,
-      member: '家庭共同',
+      member: '共同账户',
       notes: '随取随用流动资金',
       updatedAt,
     });
@@ -348,7 +348,7 @@ export function generateSeedAssetAccounts(): AssetAccountItem[] {
       name: '工行如意金积存账户',
       institution: '工商银行',
       amount: 34200 + m * 1650,
-      member: '家庭共同',
+      member: '共同账户',
       notes: '每月定投2克黄金累计市值',
       updatedAt,
     });
@@ -379,7 +379,7 @@ export function generateSeedAssetAccounts(): AssetAccountItem[] {
       institution: '招商银行',
       amount: cmbCardSpent,
       creditLimit: 50000,
-      member: '家庭共同',
+      member: '共同账户',
       notes: '当月已出+未出账单待还消费额度',
       updatedAt,
     });

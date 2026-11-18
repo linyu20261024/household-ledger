@@ -58,14 +58,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const content = (
     <div className="flex h-full flex-col bg-white border-r border-slate-200 select-none">
       {/* Brand Wordmark */}
-      <div className="flex items-center justify-between px-6 h-16 border-b border-slate-200 shrink-0">
+      <div className="flex items-center justify-between px-5 lg:px-6 h-14 lg:h-16 border-b border-slate-200 shrink-0">
         <span className="font-display text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap">
           家计账本
         </span>
         <button
           type="button"
           onClick={onCloseMobile}
-          className="lg:hidden p-1.5 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+          className="lg:hidden min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 active:bg-slate-100"
           aria-label="关闭导航菜单"
         >
           <X className="w-5 h-5" />
@@ -73,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto" aria-label="主导航">
+      <nav className="flex-1 px-3 py-4 lg:py-5 space-y-1 overflow-y-auto" aria-label="主导航">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeNav === item.id;
@@ -85,10 +85,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onSelectNav(item.id);
                 onCloseMobile();
               }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150 whitespace-nowrap ${
+              className={`w-full min-h-[44px] flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150 whitespace-nowrap ${
                 isActive
                   ? 'bg-teal-50 text-teal-800'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 active:bg-slate-100'
               }`}
             >
               <Icon
@@ -103,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Bottom Baseline & Excel Actions */}
-      <div className="p-4 border-t border-slate-200 space-y-4">
+      <div className="p-4 pb-6 lg:pb-4 border-t border-slate-200 space-y-4">
         <div className="space-y-3">
           <div>
             <div className="text-xs text-slate-500">每月硬性开支基线</div>
@@ -131,34 +131,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onOpenExcelImport();
               onCloseMobile();
             }}
-            className="inline-flex items-center justify-center gap-1 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 py-1.5 px-2 rounded-lg transition-colors whitespace-nowrap"
+            className="min-h-[42px] inline-flex items-center justify-center gap-1 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 py-1.5 px-2 rounded-lg transition-colors whitespace-nowrap"
           >
             <Upload className="w-3.5 h-3.5 text-slate-500" />
             <span>Excel导入</span>
           </button>
           <button
             type="button"
-            onClick={onExportFullExcel}
-            className="inline-flex items-center justify-center gap-1 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 py-1.5 px-2 rounded-lg transition-colors whitespace-nowrap"
+            onClick={() => {
+              onExportFullExcel();
+              onCloseMobile();
+            }}
+            className="min-h-[42px] inline-flex items-center justify-center gap-1 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 border border-teal-200 py-1.5 px-2 rounded-lg transition-colors whitespace-nowrap"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Excel导出</span>
           </button>
         </div>
 
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 pb-safe">
           <button
             type="button"
-            onClick={onResetDemoData}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 py-1 px-2 rounded-md hover:bg-slate-100 transition-colors whitespace-nowrap"
+            onClick={() => {
+              onResetDemoData();
+              onCloseMobile();
+            }}
+            className="min-h-[40px] inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 py-1 px-2.5 rounded-md hover:bg-slate-100 active:bg-slate-200 transition-colors whitespace-nowrap"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>填充示例</span>
           </button>
           <button
             type="button"
-            onClick={onClearAllData}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-red-600 py-1 px-2 rounded-md hover:bg-red-50 transition-colors whitespace-nowrap"
+            onClick={() => {
+              onClearAllData();
+              onCloseMobile();
+            }}
+            className="min-h-[40px] inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-red-600 py-1 px-2.5 rounded-md hover:bg-red-50 active:bg-red-100 transition-colors whitespace-nowrap"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>清空账本</span>
@@ -177,10 +186,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex no-print">
           <div
-            className="fixed inset-0 bg-slate-900/30 backdrop-blur-[1px]"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px]"
             onClick={onCloseMobile}
           />
-          <aside className="relative w-64 max-w-[80vw] h-full z-10">{content}</aside>
+          <aside className="relative w-72 max-w-[82vw] h-full z-10">{content}</aside>
         </div>
       )}
     </>

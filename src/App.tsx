@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AssetAccountModal } from './components/AssetAccountModal';
 import { EntryModal } from './components/EntryModal';
 import { ExcelImportModal } from './components/ExcelImportModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { Sidebar } from './components/Sidebar';
 import { TemplateModal } from './components/TemplateModal';
 import { TopBar } from './components/TopBar';
@@ -560,7 +561,7 @@ export function App() {
           onOpenMobileNav={() => setMobileNavOpen(true)}
         />
 
-        <main className="flex-1 px-4 sm:px-8 py-6 max-w-[1360px] w-full mx-auto">
+        <main className="flex-1 px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 lg:pb-8 max-w-[1360px] w-full mx-auto">
           {activeNav === 'overview' && (
             <OverviewView
               periodMode={periodMode}
@@ -730,6 +731,8 @@ export function App() {
         onClose={() => setExcelImportOpen(false)}
         onConfirmImport={handleConfirmExcelImport}
       />
+
+      <MobileBottomNav activeNav={activeNav} onSelectNav={setActiveNav} />
     </div>
   );
 }

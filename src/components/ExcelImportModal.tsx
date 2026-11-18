@@ -69,14 +69,15 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[1px]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/45 backdrop-blur-[1px]">
       <div
-        className="w-full max-w-xl bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden"
+        className="w-full sm:max-w-xl bg-white rounded-t-3xl sm:rounded-xl border border-slate-200 shadow-xl max-h-[92dvh] flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="excel-import-title"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-2.5 sm:hidden shrink-0" />
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="w-4 h-4 text-teal-700" />
             <h2 id="excel-import-title" className="font-display text-base font-semibold text-slate-900">
@@ -86,23 +87,23 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           <button
             type="button"
             onClick={handleResetAndClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="min-w-[40px] min-h-[40px] -mr-2 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
             aria-label="关闭弹窗"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1">
           {/* Template Download Strip */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
             <div className="text-xs text-slate-600">
               支持导入本系统导出的全量 <strong className="text-slate-900">.xlsx</strong> 工作簿，或按标准模板整理的数据表。
             </div>
             <button
               type="button"
               onClick={downloadImportTemplateExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-800 bg-white hover:bg-teal-50 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="min-h-[40px] sm:min-h-[34px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-800 bg-white hover:bg-teal-50 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>下载标准导入模板 (.xlsx)</span>
@@ -121,7 +122,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="w-full py-8 px-4 border-2 border-dashed border-slate-300 hover:border-teal-600 rounded-xl bg-slate-50/50 hover:bg-teal-50/20 transition-colors flex flex-col items-center justify-center text-center cursor-pointer"
+              className="w-full py-7 sm:py-8 px-4 border-2 border-dashed border-slate-300 hover:border-teal-600 rounded-xl bg-slate-50/50 hover:bg-teal-50/20 transition-colors flex flex-col items-center justify-center text-center cursor-pointer"
             >
               <Upload className="w-6 h-6 text-slate-400 mb-2" />
               <span className="text-sm font-medium text-slate-800">
@@ -194,51 +195,51 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setImportMode('merge')}
-                    className={`py-2 text-xs font-medium rounded-md transition-colors ${
+                    className={`min-h-[40px] py-2 text-xs font-medium rounded-md transition-colors ${
                       importMode === 'merge'
                         ? 'bg-white text-slate-900 shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    合并追加（保留现有账目）
+                    合并追加（保留现有）
                   </button>
                   <button
                     type="button"
                     onClick={() => setImportMode('replace')}
-                    className={`py-2 text-xs font-medium rounded-md transition-colors ${
+                    className={`min-h-[40px] py-2 text-xs font-medium rounded-md transition-colors ${
                       importMode === 'replace'
                         ? 'bg-white text-red-700 shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    覆盖导入（替换对应数据表）
+                    覆盖导入（替换对应表）
                   </button>
                 </div>
               </div>
             </div>
           )}
+        </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={handleResetAndClose}
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              disabled={!parsed}
-              onClick={handleConfirm}
-              className={`px-5 py-2 text-xs font-semibold text-white rounded-lg transition-colors ${
-                parsed
-                  ? 'bg-teal-700 hover:bg-teal-800 cursor-pointer'
-                  : 'bg-slate-300 cursor-not-allowed'
-              }`}
-            >
-              确认导入数据
-            </button>
-          </div>
+        <div className="flex items-center justify-end gap-3 px-5 sm:px-6 py-3.5 border-t border-slate-100 bg-white pb-safe shrink-0">
+          <button
+            type="button"
+            onClick={handleResetAndClose}
+            className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 sm:bg-transparent hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            disabled={!parsed}
+            onClick={handleConfirm}
+            className={`flex-1 sm:flex-initial min-h-[44px] sm:min-h-[38px] px-5 py-2 text-xs font-semibold text-white rounded-lg transition-colors ${
+              parsed
+                ? 'bg-teal-700 hover:bg-teal-800 cursor-pointer'
+                : 'bg-slate-300 cursor-not-allowed'
+            }`}
+          >
+            确认导入数据
+          </button>
         </div>
       </div>
     </div>

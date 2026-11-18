@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { ASSET_CATEGORY_META, TAG_COLOR_PALETTE } from '../data/seedData';
+import { ASSET_CATEGORY_META, DEFAULT_MEMBERS, TAG_COLOR_PALETTE } from '../data/seedData';
 import {
   AccountDirection,
   AssetAccountItem,
@@ -350,7 +350,7 @@ export function downloadImportTemplateExcel() {
       收支类型: '硬性支出',
       项目名称: '自住房按揭月供',
       分类标签: '房贷 / 房租',
-      家庭成员: '家庭共同',
+      家庭成员: '共同账户',
       '金额（元）': 7650,
       状态: '已扣款',
       备注: '示例硬性支出记录',
@@ -374,7 +374,7 @@ export function downloadImportTemplateExcel() {
       '每月标准金额（元）': 7650,
       分类标签: '房贷 / 房租',
       每月扣款日: 10,
-      责任成员: '家庭共同',
+      责任成员: '共同账户',
       启用状态: '启用',
       说明备注: '每月10日自动扣款',
     },
@@ -399,7 +399,7 @@ export function downloadImportTemplateExcel() {
       所属机构: '招商银行',
       '期末余额或已用额度（元）': 85000,
       '信用卡总额度（元）': '',
-      归属成员: '家庭共同',
+      归属成员: '共同账户',
       备注: '月底储蓄余额示例',
     },
     {
@@ -410,7 +410,7 @@ export function downloadImportTemplateExcel() {
       所属机构: '支付宝',
       '期末余额或已用额度（元）': 62000,
       '信用卡总额度（元）': '',
-      归属成员: '家庭共同',
+      归属成员: '共同账户',
       备注: '',
     },
     {
@@ -421,7 +421,7 @@ export function downloadImportTemplateExcel() {
       所属机构: '工商银行',
       '期末余额或已用额度（元）': 48000,
       '信用卡总额度（元）': '',
-      归属成员: '家庭共同',
+      归属成员: '共同账户',
       备注: '',
     },
     {
@@ -443,7 +443,7 @@ export function downloadImportTemplateExcel() {
       所属机构: '招商银行',
       '期末余额或已用额度（元）': 5800,
       '信用卡总额度（元）': 50000,
-      归属成员: '家庭共同',
+      归属成员: '共同账户',
       备注: '当月已出与未出账单合计',
     },
   ]);
@@ -583,7 +583,9 @@ export async function parseExcelWorkbook(
         const institution = String(
           getField(row, ['所属机构', '机构', '银行']) ?? '未填写机构'
         ).trim();
-        const member = String(getField(row, ['归属成员', '成员']) ?? '家庭共同').trim();
+        const rawMember = String(getField(row, ['归属成员', '成员']) ?? '').trim();
+        const member =
+          rawMember === '家庭共同' ? '共同账户' : rawMember || DEFAULT_MEMBERS[0];
         const notes = String(getField(row, ['备注', '说明']) ?? '').trim();
 
         if (amount < 0) {
@@ -627,7 +629,9 @@ export async function parseExcelWorkbook(
           31,
           Math.max(1, Math.round(toNumber(getField(row, ['每月扣款日', '扣款日'])) || 10))
         );
-        const member = String(getField(row, ['责任成员', '家庭成员', '成员']) ?? '家庭共同').trim();
+        const rawTplMember = String(getField(row, ['责任成员', '家庭成员', '成员']) ?? '').trim();
+        const member =
+          rawTplMember === '家庭共同' ? '共同账户' : rawTplMember || DEFAULT_MEMBERS[0];
         const activeStr = String(getField(row, ['启用状态', '状态']) ?? '启用');
         const notes = String(getField(row, ['说明备注', '备注']) ?? '').trim();
 
@@ -663,7 +667,9 @@ export async function parseExcelWorkbook(
         const type: EntryType = typeStr.includes('收入') ? 'income' : 'fixed_expense';
         const catName = String(getField(row, ['分类标签', '分类', '标签']) ?? '');
         const date = normalizeDateString(getField(row, ['日期', '发生日期', '入账日期']));
-        const member = String(getField(row, ['家庭成员', '成员']) ?? '家庭共同').trim();
+        const rawEntryMember = String(getField(row, ['家庭成员', '成员']) ?? '').trim();
+        const member =
+          rawEntryMember === '家庭共同' ? '共同账户' : rawEntryMember || DEFAULT_MEMBERS[0];
         const statusStr = String(getField(row, ['状态', '结算状态']) ?? '已');
         const notes = String(getField(row, ['备注', '说明']) ?? '').trim();
 
