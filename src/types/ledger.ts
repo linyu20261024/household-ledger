@@ -34,10 +34,16 @@ export interface LedgerEntry {
   createdAt: string;
 }
 
+export type TemplateAmountMode = 'fixed' | 'variable';
+
+export type TemplateFrequency = 'monthly' | 'occasional';
+
 export interface FixedExpenseTemplate {
   id: string;
   title: string;
   amount: number;
+  amountMode?: TemplateAmountMode; // 'fixed' (默认固定金额) | 'variable' (金额浮动)
+  frequency?: TemplateFrequency; // 'monthly' (默认每月都有) | 'occasional' (非每月固定/按需发生)
   categoryId: string;
   dueDay: number; // 1-31
   member: string;

@@ -9,6 +9,8 @@ import {
   FixedExpenseTemplate,
   LedgerEntry,
   SummaryReport,
+  TemplateAmountMode,
+  TemplateFrequency,
 } from '../types/ledger';
 import { resolveCreditLimitForCard } from './analytics';
 
@@ -193,6 +195,8 @@ export async function exportFullWorkbookToExcel(params: {
     .map((t) => ({
       固定开支名称: t.title,
       '每月标准金额（元）': Number(t.amount.toFixed(2)),
+      发生频次: (t.frequency ?? 'monthly') === 'occasional' ? '非每月都有' : '每月固定',
+      金额模式: t.amountMode === 'variable' ? '金额不固定' : '固定金额',
       分类标签: tagMap.get(t.categoryId) || '未分类',
       每月扣款日: t.dueDay,
       责任成员: t.member,
@@ -206,6 +210,8 @@ export async function exportFullWorkbookToExcel(params: {
           {
             固定开支名称: '',
             '每月标准金额（元）': 0,
+            发生频次: '每月固定',
+            金额模式: '固定金额',
             分类标签: '',
             每月扣款日: 10,
             责任成员: '',
@@ -217,6 +223,8 @@ export async function exportFullWorkbookToExcel(params: {
   wsTemplates['!cols'] = [
     { wch: 26 },
     { wch: 18 },
+    { wch: 14 },
+    { wch: 14 },
     { wch: 16 },
     { wch: 12 },
     { wch: 12 },
@@ -378,21 +386,36 @@ export async function downloadImportTemplateExcel() {
     {
       固定开支名称: '自住房商业+公积金按揭',
       '每月标准金额（元）': 7650,
+      发生频次: '每月固定',
+      金额模式: '固定金额',
       分类标签: '房贷 / 房租',
       每月扣款日: 10,
       责任成员: '共同账户',
       启用状态: '启用',
       说明备注: '每月10日自动扣款',
     },
+    {
+      固定开支名称: '家庭水电燃气费',
+      '每月标准金额（元）': 0,
+      发生频次: '非每月都有',
+      金额模式: '金额不固定',
+      分类标签: '物业与水电燃气',
+      每月扣款日: 15,
+      责任成员: '共同账户',
+      启用状态: '启用',
+      说明备注: '按实际账单发生月份手工记入并填写金额',
+    },
   ]);
   wsTemplates['!cols'] = [
     { wch: 26 },
     { wch: 18 },
+    { wch: 14 },
+    { wch: 14 },
     { wch: 16 },
     { wch: 12 },
     { wch: 12 },
     { wch: 10 },
-    { wch: 28 },
+    { wch: 32 },
   ];
   XLSX.utils.book_append_sheet(wb, wsTemplates, '每月固定开支模板');
 
@@ -651,10 +674,26 @@ export async function parseExcelWorkbook(
           getField(row, ['固定开支名称', '项目名称', '名称']) ?? ''
         ).trim();
         if (!title) return;
-        const amount = toNumber(
-          getField(row, ['每月标准金额（元）', '每月标准金额', '金额（元）', '金额'])
+        const freqStr = String(getField(row, ['发生频次', '频次', '周期']) ?? '');
+        const frequency: TemplateFrequency =
+          freqStr.includes('非') ||
+          freqStr.includes('偶') ||
+          freqStr.includes('按需') ||
+          freqStr.includes('不定期')
+            ? 'occasional'
+            : 'monthly';
+        const modeStr = String(getField(row, ['金额模式', '金额类型']) ?? '');
+        const amountMode: TemplateAmountMode =
+          modeStr.includes('浮动') || modeStr.includes('不固定') || modeStr.includes('变')
+            ? 'variable'
+            : 'fixed';
+        const amount = Math.max(
+          0,
+          toNumber(
+            getField(row, ['每月标准金额（元）', '每月标准金额', '金额（元）', '金额'])
+          )
         );
-        if (amount <= 0) return;
+        if (amountMode === 'fixed' && amount <= 0) return;
         const catName = String(getField(row, ['分类标签', '分类']) ?? '未分类支出');
         const dueDay = Math.min(
           31,
@@ -670,6 +709,8 @@ export async function parseExcelWorkbook(
           id: createId('tpl'),
           title,
           amount,
+          amountMode,
+          frequency,
           categoryId: resolveTagId(catName, 'fixed_expense'),
           dueDay,
           member,
@@ -689,8 +730,9 @@ export async function parseExcelWorkbook(
       rows.forEach((row, idx) => {
         const title = String(getField(row, ['项目名称', '名称', '摘要']) ?? '').trim();
         if (!title) return;
-        const amount = toNumber(getField(row, ['金额（元）', '金额', 'amount']));
-        if (amount <= 0) {
+        const rawAmount = getField(row, ['金额（元）', '金额', 'amount']);
+        const amount = toNumber(rawAmount);
+        if (rawAmount === undefined || !Number.isFinite(amount) || amount < 0) {
           warnings.push(`工作表「${sheetName}」第 ${idx + 2} 行「${title}」金额无效，已跳过`);
           return;
         }

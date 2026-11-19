@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, CalendarCheck2, Check, Clock, Landmark, Pencil, Search, X } from 'lucide-react';
+import { ArrowRight, CalendarCheck2, Check, Clock, Landmark, Pencil, Search, Trash2, X } from 'lucide-react';
 import {
   AssetSnapshotSummary,
   CategoryTag,
@@ -25,6 +25,7 @@ interface OverviewViewProps {
   onGenerateMonthTemplates: (monthKey: string) => void;
   onToggleEntryStatus: (entryId: string) => void;
   onEditEntry: (entry: LedgerEntry) => void;
+  onDeleteEntry: (entryId: string) => void;
   onOpenAddEntry: () => void;
   onNavigateReports: () => void;
   onNavigateAssets: () => void;
@@ -53,6 +54,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onGenerateMonthTemplates,
   onToggleEntryStatus,
   onEditEntry,
+  onDeleteEntry,
   onOpenAddEntry,
   onNavigateReports,
   onNavigateAssets,
@@ -61,6 +63,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const [entrySearch, setEntrySearch] = useState('');
   const tagMap = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
   const missingTotal = missingTemplatesForMonth.reduce((acc, t) => acc + t.amount, 0);
+  const missingHasVariable = missingTemplatesForMonth.some((t) => t.amountMode === 'variable');
 
   const pendingFixed = scopedEntries
     .filter((e) => e.type === 'fixed_expense' && e.status === 'pending')
@@ -95,7 +98,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <span className="font-mono-num font-semibold text-slate-900">
                 {formatCurrency(missingTotal)}
               </span>
-              ）
+              {missingHasVariable ? '，含浮动金额项' : ''}）
             </div>
           </div>
           <button
@@ -315,16 +318,36 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                      <span className="font-mono-num text-[13px] sm:text-sm font-semibold text-slate-900">
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                      <span
+                        className={`font-mono-num text-[13px] sm:text-sm font-semibold ${
+                          entry.amount === 0 ? 'text-amber-700' : 'text-slate-900'
+                        }`}
+                      >
                         {formatCurrency(entry.amount)}
                       </span>
                       <button
                         type="button"
                         onClick={() => onToggleEntryStatus(entry.id)}
-                        className="min-h-[30px] px-2.5 py-1 text-[11px] sm:text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-md transition-colors whitespace-nowrap"
+                        className="min-h-[28px] px-2 py-1 text-[11px] sm:text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-md transition-colors whitespace-nowrap"
                       >
                         标记已扣
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onEditEntry(entry)}
+                        className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-slate-800 active:bg-slate-100 rounded-md"
+                        aria-label="编辑待扣项目"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteEntry(entry.id)}
+                        className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
+                        aria-label="删除本月此开支"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -476,6 +499,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteEntry(entry.id)}
+                            className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
+                            aria-label="删除记录"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -552,14 +583,24 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                             {formatCurrency(entry.amount)}
                           </td>
                           <td className="py-2 px-4 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => onEditEntry(entry)}
-                              className="p-1 text-slate-400 hover:text-slate-800 rounded"
-                              aria-label="编辑记录"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => onEditEntry(entry)}
+                                className="p-1 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100"
+                                aria-label="编辑记录"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDeleteEntry(entry.id)}
+                                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                                aria-label="删除记录"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { DEFAULT_MEMBERS, TAG_COLOR_PALETTE } from '../data/seedData';
 import { CategoryTag, EntryType, LedgerEntry, PaymentStatus } from '../types/ledger';
 
@@ -13,6 +13,7 @@ interface EntryModalProps {
     data: Omit<LedgerEntry, 'id' | 'createdAt'>,
     alsoSaveTemplate: boolean
   ) => void;
+  onDeleteEntry?: (id: string) => void;
   onQuickCreateTag: (name: string, type: EntryType, color: string) => CategoryTag;
 }
 
@@ -23,6 +24,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   tags,
   onClose,
   onSaveEntry,
+  onDeleteEntry,
   onQuickCreateTag,
 }) => {
   const [type, setType] = useState<EntryType>('fixed_expense');
@@ -104,8 +106,9 @@ export const EntryModal: React.FC<EntryModalProps> = ({
       setError('请填写项目名称');
       return;
     }
-    if (!Number.isFinite(numAmount) || numAmount <= 0) {
-      setError('请输入大于 0 的有效金额');
+    const allowZero = Boolean(editingEntry?.templateId);
+    if (!Number.isFinite(numAmount) || (allowZero ? numAmount < 0 : numAmount <= 0)) {
+      setError(allowZero ? '请输入不小于 0 的有效金额' : '请输入大于 0 的有效金额');
       return;
     }
     if (!date) {
@@ -387,20 +390,37 @@ export const EntryModal: React.FC<EntryModalProps> = ({
             {error && <p className="text-xs font-medium text-red-600">{error}</p>}
           </div>
 
-          <div className="flex items-center justify-end gap-3 px-5 sm:px-6 py-3.5 border-t border-slate-100 bg-white pb-safe shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 sm:bg-transparent hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-[38px] px-5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors cursor-pointer"
-            >
-              {editingEntry ? '保存修改' : '确认登记'}
-            </button>
+          <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-3.5 border-t border-slate-100 bg-white pb-safe shrink-0">
+            <div>
+              {editingEntry && onDeleteEntry && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteEntry(editingEntry.id);
+                    onClose();
+                  }}
+                  className="inline-flex items-center gap-1.5 min-h-[44px] sm:min-h-[38px] px-3 py-2 text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>删除此记录</span>
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2.5 flex-1 sm:flex-initial justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 sm:bg-transparent hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-[38px] px-5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors cursor-pointer"
+              >
+                {editingEntry ? '保存修改' : '确认登记'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

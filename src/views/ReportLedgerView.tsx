@@ -9,6 +9,7 @@ import {
   Search,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import { DEFAULT_MEMBERS } from '../data/seedData';
 import {
@@ -28,6 +29,7 @@ interface ReportLedgerViewProps {
   tags: CategoryTag[];
   onToggleStatus: (id: string) => void;
   onEditEntry: (entry: LedgerEntry) => void;
+  onQuickUpdateAmount?: (id: string, newAmount: number) => void;
   onDeleteEntry: (id: string) => void;
   onExportExcel: (filteredEntries: LedgerEntry[]) => void;
   onOpenExcelImport: () => void;
@@ -39,6 +41,7 @@ export const ReportLedgerView: React.FC<ReportLedgerViewProps> = ({
   tags,
   onToggleStatus,
   onEditEntry,
+  onQuickUpdateAmount,
   onDeleteEntry,
   onExportExcel,
   onOpenExcelImport,
@@ -48,6 +51,8 @@ export const ReportLedgerView: React.FC<ReportLedgerViewProps> = ({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [memberFilter, setMemberFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
+  const [inlineEditId, setInlineEditId] = useState<string | null>(null);
+  const [inlineVal, setInlineVal] = useState('');
 
   const tagMap = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
 
@@ -90,6 +95,22 @@ export const ReportLedgerView: React.FC<ReportLedgerViewProps> = ({
     if (typeFilter === 'all') return tags;
     return tags.filter((t) => t.type === typeFilter);
   }, [tags, typeFilter]);
+
+  const startInlineEdit = (entry: LedgerEntry) => {
+    if (!onQuickUpdateAmount) return;
+    setInlineEditId(entry.id);
+    setInlineVal(String(entry.amount));
+  };
+
+  const commitInlineEdit = (id: string) => {
+    if (!onQuickUpdateAmount) return;
+    const num = Number(inlineVal);
+    if (Number.isFinite(num) && num >= 0) {
+      onQuickUpdateAmount(id, Math.round(num * 100) / 100);
+    }
+    setInlineEditId(null);
+    setInlineVal('');
+  };
 
   const handleExportCsv = () => {
     const csv = buildCsvReport(report, filteredEntries, tags);
@@ -425,14 +446,56 @@ export const ReportLedgerView: React.FC<ReportLedgerViewProps> = ({
                         </span>
                       </div>
 
-                      <div
-                        className={`font-mono-num text-[13px] font-bold whitespace-nowrap shrink-0 ${
-                          isInc ? 'text-teal-700' : 'text-slate-900'
-                        }`}
-                      >
-                        {isInc ? '+' : '-'}
-                        {formatCurrency(entry.amount)}
-                      </div>
+                      {inlineEditId === entry.id ? (
+                        <div className="inline-flex items-center gap-1 shrink-0">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="0.01"
+                            min="0"
+                            value={inlineVal}
+                            onChange={(e) => setInlineVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitInlineEdit(entry.id);
+                              if (e.key === 'Escape') setInlineEditId(null);
+                            }}
+                            autoFocus
+                            className="w-24 h-7 px-2 text-right text-xs font-mono-num bg-white border border-teal-600 rounded-md focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => commitInlineEdit(entry.id)}
+                            className="w-7 h-7 inline-flex items-center justify-center text-white bg-teal-700 rounded-md"
+                            aria-label="保存金额"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInlineEditId(null)}
+                            className="w-7 h-7 inline-flex items-center justify-center text-slate-400"
+                            aria-label="取消"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startInlineEdit(entry)}
+                          title={onQuickUpdateAmount ? '点击快捷修改金额' : undefined}
+                          className={`font-mono-num text-[13px] font-bold whitespace-nowrap shrink-0 ${
+                            isInc
+                              ? 'text-teal-700'
+                              : entry.amount === 0
+                                ? 'text-amber-700 underline decoration-dotted'
+                                : 'text-slate-900'
+                          } ${onQuickUpdateAmount ? 'hover:opacity-75 cursor-pointer' : ''}`}
+                        >
+                          {isInc ? '+' : '-'}
+                          {formatCurrency(entry.amount)}
+                        </button>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between gap-2">
@@ -565,13 +628,56 @@ export const ReportLedgerView: React.FC<ReportLedgerViewProps> = ({
                             </span>
                           </button>
                         </td>
-                        <td
-                          className={`py-2.5 px-4 text-right font-mono-num font-semibold whitespace-nowrap ${
-                            isInc ? 'text-teal-700' : 'text-slate-900'
-                          }`}
-                        >
-                          {isInc ? '+' : '-'}
-                          {formatCurrency(entry.amount)}
+                        <td className="py-2.5 px-4 text-right font-mono-num font-semibold whitespace-nowrap">
+                          {inlineEditId === entry.id ? (
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={inlineVal}
+                                onChange={(e) => setInlineVal(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') commitInlineEdit(entry.id);
+                                  if (e.key === 'Escape') setInlineEditId(null);
+                                }}
+                                autoFocus
+                                className="w-24 h-7 px-2 text-right text-xs font-mono-num bg-white border border-teal-600 rounded-md focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => commitInlineEdit(entry.id)}
+                                className="w-7 h-7 inline-flex items-center justify-center text-white bg-teal-700 rounded-md"
+                                aria-label="保存金额"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setInlineEditId(null)}
+                                className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-slate-700"
+                                aria-label="取消"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => startInlineEdit(entry)}
+                              title={onQuickUpdateAmount ? '点击快捷修改金额' : undefined}
+                              className={`${
+                                isInc
+                                  ? 'text-teal-700'
+                                  : entry.amount === 0
+                                    ? 'text-amber-700 underline decoration-dotted'
+                                    : 'text-slate-900'
+                              } ${onQuickUpdateAmount ? 'hover:underline cursor-pointer' : ''}`}
+                            >
+                              {isInc ? '+' : '-'}
+                              {formatCurrency(entry.amount)}
+                            </button>
+                          )}
                         </td>
                         <td className="py-2.5 px-5 text-right whitespace-nowrap no-print">
                           <div className="inline-flex items-center gap-1">

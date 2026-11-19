@@ -45,6 +45,7 @@ const STORAGE_KEYS = {
   templates: 'household_ledger_templates_v2',
   tags: 'household_ledger_tags_v2',
   assets: 'household_ledger_assets_v2',
+  skippedTplMonths: 'household_ledger_skipped_tpl_months_v1',
 };
 
 function createId(prefix: string): string {
@@ -104,6 +105,8 @@ function loadStoredTemplates(): FixedExpenseTemplate[] {
       id: typeof item.id === 'string' && item.id ? item.id : createId('tpl'),
       title: typeof item.title === 'string' ? item.title : '固定开支项',
       amount: Number.isFinite(Number(item.amount)) ? Number(item.amount) : 0,
+      amountMode: item.amountMode === 'variable' ? ('variable' as const) : ('fixed' as const),
+      frequency: item.frequency === 'occasional' ? ('occasional' as const) : ('monthly' as const),
       categoryId: typeof item.categoryId === 'string' ? item.categoryId : '',
       dueDay:
         Number.isFinite(Number(item.dueDay)) && Number(item.dueDay) >= 1 && Number(item.dueDay) <= 31
@@ -113,6 +116,12 @@ function loadStoredTemplates(): FixedExpenseTemplate[] {
       active: typeof item.active === 'boolean' ? item.active : true,
       notes: typeof item.notes === 'string' ? item.notes : undefined,
     }));
+}
+
+function loadSkippedTemplateMonths(): string[] {
+  const arr = safeReadArray(STORAGE_KEYS.skippedTplMonths);
+  if (!arr) return [];
+  return arr.filter((item): item is string => typeof item === 'string' && item.includes('::'));
 }
 
 function loadStoredTags(): CategoryTag[] {
@@ -173,6 +182,9 @@ export function App() {
   const [templates, setTemplates] = useState<FixedExpenseTemplate[]>(loadStoredTemplates);
   const [tags, setTags] = useState<CategoryTag[]>(loadStoredTags);
   const [assetAccounts, setAssetAccounts] = useState<AssetAccountItem[]>(loadStoredAssets);
+  const [skippedTemplateMonths, setSkippedTemplateMonths] = useState<string[]>(
+    loadSkippedTemplateMonths
+  );
 
   useEffect(() => {
     try {
@@ -206,6 +218,14 @@ export function App() {
     }
   }, [assetAccounts]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.skippedTplMonths, JSON.stringify(skippedTemplateMonths));
+    } catch {
+      // ignore
+    }
+  }, [skippedTemplateMonths]);
+
   const [activeNav, setActiveNav] = useState<NavSection>('overview');
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
   const [selectedMonth, setSelectedMonth] = useState<string>(() =>
@@ -228,6 +248,10 @@ export function App() {
   const [lastCopyUndo, setLastCopyUndo] = useState<{
     monthKey: string;
     sourceMonth: string;
+    createdIds: string[];
+  } | null>(null);
+  const [lastTplGenerateUndo, setLastTplGenerateUndo] = useState<{
+    label: string;
     createdIds: string[];
   } | null>(null);
 
@@ -294,9 +318,18 @@ export function App() {
   );
 
   const activeTemplates = useMemo(() => templates.filter((t) => t.active), [templates]);
-  const monthlyTemplateBaseline = useMemo(
-    () => activeTemplates.reduce((acc, t) => acc + t.amount, 0),
+  const monthlyActiveTemplates = useMemo(
+    () => activeTemplates.filter((t) => (t.frequency ?? 'monthly') === 'monthly'),
     [activeTemplates]
+  );
+  const monthlyTemplateBaseline = useMemo(
+    () => monthlyActiveTemplates.reduce((acc, t) => acc + t.amount, 0),
+    [monthlyActiveTemplates]
+  );
+
+  const skippedTemplateMonthSet = useMemo(
+    () => new Set(skippedTemplateMonths),
+    [skippedTemplateMonths]
   );
 
   const existingTemplateIdsForMonth = useMemo(() => {
@@ -310,8 +343,13 @@ export function App() {
   }, [entries, selectedMonth]);
 
   const missingTemplatesForMonth = useMemo(
-    () => activeTemplates.filter((t) => !existingTemplateIdsForMonth.has(t.id)),
-    [activeTemplates, existingTemplateIdsForMonth]
+    () =>
+      monthlyActiveTemplates.filter(
+        (t) =>
+          !existingTemplateIdsForMonth.has(t.id) &&
+          !skippedTemplateMonthSet.has(`${selectedMonth}::${t.id}`)
+      ),
+    [monthlyActiveTemplates, existingTemplateIdsForMonth, skippedTemplateMonthSet, selectedMonth]
   );
 
   // Handlers
@@ -396,7 +434,26 @@ export function App() {
   };
 
   const handleDeleteEntry = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
+    const target = entries.find((e) => e.id === id);
+    const remaining = entries.filter((e) => e.id !== id);
+    setEntries(remaining);
+    if (target?.templateId) {
+      const monthKey = target.date.slice(0, 7);
+      const stillHas = remaining.some(
+        (e) => e.templateId === target.templateId && e.date.startsWith(monthKey)
+      );
+      const tpl = templates.find((t) => t.id === target.templateId);
+      if (!stillHas && (tpl?.frequency ?? 'monthly') === 'monthly') {
+        const pair = `${monthKey}::${target.templateId}`;
+        setSkippedTemplateMonths((prev) => (prev.includes(pair) ? prev : [...prev, pair]));
+      }
+    }
+  };
+
+  const handleQuickUpdateEntryAmount = (id: string, newAmount: number) => {
+    setEntries((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, amount: newAmount } : e))
+    );
   };
 
   const handleSaveTemplate = (data: Omit<FixedExpenseTemplate, 'id'>) => {
@@ -420,6 +477,7 @@ export function App() {
 
   const handleDeleteTemplate = (id: string) => {
     setTemplates((prev) => prev.filter((t) => t.id !== id));
+    setSkippedTemplateMonths((prev) => prev.filter((p) => !p.endsWith(`::${id}`)));
   };
 
   const generateTemplatesForMonth = (monthKey: string): number => {
@@ -431,8 +489,9 @@ export function App() {
 
     const currentMonthKey = new Date().toISOString().slice(0, 7);
     const toAdd: LedgerEntry[] = [];
-    for (const tpl of activeTemplates) {
+    for (const tpl of monthlyActiveTemplates) {
       if (existingForMonth.has(tpl.id)) continue;
+      if (skippedTemplateMonthSet.has(`${monthKey}::${tpl.id}`)) continue;
       const dateStr = clampDateForMonth(monthKey, tpl.dueDay);
       toAdd.push({
         id: createId('entry'),
@@ -451,6 +510,10 @@ export function App() {
 
     if (toAdd.length > 0) {
       setEntries((prev) => [...toAdd, ...prev]);
+      setLastTplGenerateUndo({
+        label: `${monthKey} 批量生成`,
+        createdIds: toAdd.map((item) => item.id),
+      });
     }
     return toAdd.length;
   };
@@ -466,9 +529,10 @@ export function App() {
     const toAdd: LedgerEntry[] = [];
     for (let m = 1; m <= 12; m++) {
       const monthKey = `${yearKey}-${String(m).padStart(2, '0')}`;
-      for (const tpl of activeTemplates) {
+      for (const tpl of monthlyActiveTemplates) {
         const pair = `${monthKey}::${tpl.id}`;
         if (existingPairs.has(pair)) continue;
+        if (skippedTemplateMonthSet.has(pair)) continue;
         toAdd.push({
           id: createId('entry'),
           title: tpl.title,
@@ -487,8 +551,74 @@ export function App() {
 
     if (toAdd.length > 0) {
       setEntries((prev) => [...toAdd, ...prev]);
+      setLastTplGenerateUndo({
+        label: `${yearKey} 年度补齐`,
+        createdIds: toAdd.map((item) => item.id),
+      });
     }
     return toAdd.length;
+  };
+
+  const handleGenerateSingleTemplateForMonth = (
+    templateId: string,
+    monthKey: string,
+    overrideAmount?: number
+  ): boolean => {
+    const tpl = templates.find((t) => t.id === templateId);
+    if (!tpl) return false;
+    const alreadyExists = entries.some(
+      (e) => e.templateId === templateId && e.date.startsWith(monthKey)
+    );
+    if (alreadyExists) return false;
+
+    const currentMonthKey = new Date().toISOString().slice(0, 7);
+    const amountVal =
+      overrideAmount !== undefined && Number.isFinite(overrideAmount) && overrideAmount >= 0
+        ? Math.round(overrideAmount * 100) / 100
+        : tpl.amount;
+
+    const newEntry: LedgerEntry = {
+      id: createId('entry'),
+      title: tpl.title,
+      amount: amountVal,
+      type: 'fixed_expense',
+      categoryId: tpl.categoryId,
+      date: clampDateForMonth(monthKey, tpl.dueDay),
+      member: tpl.member,
+      status: monthKey < currentMonthKey ? 'paid' : 'pending',
+      templateId: tpl.id,
+      notes: tpl.notes,
+      createdAt: new Date().toISOString(),
+    };
+    setEntries((prev) => [newEntry, ...prev]);
+    const pair = `${monthKey}::${templateId}`;
+    setSkippedTemplateMonths((prev) => prev.filter((p) => p !== pair));
+    return true;
+  };
+
+  const handleRemoveTemplateFromMonth = (templateId: string, monthKey: string): number => {
+    const toRemove = entries.filter(
+      (e) => e.templateId === templateId && e.date.startsWith(monthKey)
+    );
+    if (toRemove.length === 0) return 0;
+    const removeIds = new Set(toRemove.map((e) => e.id));
+    setEntries((prev) => prev.filter((e) => !removeIds.has(e.id)));
+
+    const tpl = templates.find((t) => t.id === templateId);
+    if ((tpl?.frequency ?? 'monthly') === 'monthly') {
+      const pair = `${monthKey}::${templateId}`;
+      setSkippedTemplateMonths((prev) => (prev.includes(pair) ? prev : [...prev, pair]));
+    }
+    return toRemove.length;
+  };
+
+  const handleUndoTemplateGenerate = (): number => {
+    if (!lastTplGenerateUndo) return 0;
+    const idSet = new Set(lastTplGenerateUndo.createdIds);
+    const removedCount = entries.filter((e) => idSet.has(e.id)).length;
+    setEntries((prev) => prev.filter((e) => !idSet.has(e.id)));
+    setLastTplGenerateUndo(null);
+    return removedCount;
   };
 
   // Asset & Credit/Loan Handlers
@@ -771,6 +901,7 @@ export function App() {
                 setEditingEntry(entry);
                 setEntryModalOpen(true);
               }}
+              onDeleteEntry={handleDeleteEntry}
               onOpenAddEntry={() => {
                 setEditingEntry(null);
                 setEntryModalOpen(true);
@@ -787,10 +918,12 @@ export function App() {
           {activeNav === 'templates' && (
             <FixedTemplatesView
               templates={templates}
+              entries={entries}
               tags={tags}
               selectedMonth={selectedMonth}
               selectedYear={selectedYear}
-              existingTemplateIdsForMonth={existingTemplateIdsForMonth}
+              skippedTemplateMonths={skippedTemplateMonths}
+              lastBatchUndo={lastTplGenerateUndo}
               onOpenAddTemplate={() => {
                 setEditingTemplate(null);
                 setTemplateModalOpen(true);
@@ -803,6 +936,10 @@ export function App() {
               onDeleteTemplate={handleDeleteTemplate}
               onGenerateForMonth={generateTemplatesForMonth}
               onGenerateForYear={generateTemplatesForYear}
+              onGenerateSingleForMonth={handleGenerateSingleTemplateForMonth}
+              onRemoveFromMonth={handleRemoveTemplateFromMonth}
+              onQuickUpdateEntryAmount={handleQuickUpdateEntryAmount}
+              onUndoBatchGenerate={handleUndoTemplateGenerate}
               onExportExcel={() => handleExportWorkbook()}
               onOpenExcelImport={() => setExcelImportOpen(true)}
             />
@@ -819,6 +956,7 @@ export function App() {
                 setEditingEntry(entry);
                 setEntryModalOpen(true);
               }}
+              onQuickUpdateAmount={handleQuickUpdateEntryAmount}
               onDeleteEntry={handleDeleteEntry}
               onExportExcel={(filtered) => handleExportWorkbook(report, filtered)}
               onOpenExcelImport={() => setExcelImportOpen(true)}
@@ -893,6 +1031,7 @@ export function App() {
           setEditingEntry(null);
         }}
         onSaveEntry={handleSaveEntry}
+        onDeleteEntry={handleDeleteEntry}
         onQuickCreateTag={handleQuickCreateTag}
       />
 
