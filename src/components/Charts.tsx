@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Image as ImageIcon } from 'lucide-react';
 import {
   AssetCategoryBreakdownItem,
@@ -35,6 +35,7 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
   onSelectMonthPoint,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const width = 760;
@@ -89,12 +90,42 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
       ? `${yearKey}年 逐月收支与可支配收入趋势（当前聚焦：${highlightMonthNum}月）`
       : `${yearKey} 年度 逐月收支与可支配收入趋势`;
 
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || periodMode !== 'month' || !activeMonthKey) return;
+    const activeIdx = annualData.findIndex((p) => p.monthKey === activeMonthKey);
+    if (activeIdx === -1) return;
+
+    const centerActiveMonth = () => {
+      const maxScroll = container.scrollWidth - container.clientWidth;
+      if (maxScroll <= 0) return;
+      const svgWidth = svgRef.current?.getBoundingClientRect().width || container.scrollWidth;
+      const centerX = ((pad.left + slotW * activeIdx + slotW / 2) / width) * svgWidth;
+      const targetLeft = Math.max(
+        0,
+        Math.min(maxScroll, centerX - container.clientWidth / 2)
+      );
+      container.scrollLeft = targetLeft;
+    };
+
+    const raf = requestAnimationFrame(centerActiveMonth);
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(centerActiveMonth);
+      observer.observe(container);
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+    };
+  }, [periodMode, activeMonthKey, yearKey, annualData, slotW]);
+
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-5 flex flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 mb-2.5 sm:mb-4">
         <div>
           <h3 className="font-display text-sm font-semibold text-slate-900">{chartTitle}</h3>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 mt-1 text-[11px] sm:text-xs text-slate-500">
             <span className="inline-flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-xs bg-teal-700 inline-block" />
               家庭收入
@@ -111,7 +142,7 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
         </div>
 
         {showExportButtons && (
-          <div className="flex items-center gap-2 shrink-0 no-print">
+          <div className="flex items-center gap-1.5 shrink-0 no-print">
             <button
               type="button"
               onClick={() =>
@@ -121,7 +152,7 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
                   chartTitle
                 )
               }
-              className="inline-flex items-center gap-1.5 min-h-[34px] sm:min-h-0 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 min-h-[30px] sm:min-h-0 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
             >
               <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
               <span>导出 PNG</span>
@@ -134,7 +165,7 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
                   `月度收支与可支配趋势_${periodLabel.replace(/\s+/g, '')}.svg`
                 )
               }
-              className="inline-flex items-center gap-1.5 min-h-[34px] sm:min-h-0 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 min-h-[30px] sm:min-h-0 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
             >
               <Download className="w-3.5 h-3.5 text-slate-500" />
               <span>SVG</span>
@@ -144,9 +175,9 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
       </div>
 
       {/* Interactive Tooltip Strip */}
-      <div className="min-h-[32px] py-1.5 mb-2 flex items-center justify-between text-xs px-3 bg-slate-50 border border-slate-100 rounded-lg">
+      <div className="min-h-[28px] py-1 mb-1.5 sm:mb-2 flex items-center justify-between text-[11px] sm:text-xs px-2.5 sm:px-3 bg-slate-50 border border-slate-100 rounded-lg">
         {activeDisplayItem ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-700">
+          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-0.5 text-slate-700">
             <span className="font-semibold text-slate-900">{activeDisplayItem.monthKey}</span>
             <span className="font-mono-num">
               收入：<strong className="text-teal-700">{formatCurrency(activeDisplayItem.income)}</strong>
@@ -156,7 +187,7 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
               <strong className="text-amber-700">{formatCurrency(activeDisplayItem.expense)}</strong>
             </span>
             <span className="font-mono-num">
-              可支配收入：
+              可支配：
               <strong
                 className={
                   activeDisplayItem.disposableIncome >= 0 ? 'text-sky-700' : 'text-red-600'
@@ -173,14 +204,15 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
         )}
       </div>
 
-      <div className="w-full overflow-x-auto no-scrollbar">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto min-w-[520px] sm:min-w-[560px]"
-          style={{ fontFamily: '"DM Sans", "Noto Sans SC", sans-serif' }}
-          onMouseLeave={() => setHoverIdx(null)}
-        >
+      <div ref={scrollContainerRef} className="w-full overflow-x-auto no-scrollbar">
+        <div className="w-max sm:w-full pr-28 sm:pr-0">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${width} ${height}`}
+            className="w-[520px] sm:w-full h-auto"
+            style={{ fontFamily: '"DM Sans", "Noto Sans SC", sans-serif' }}
+            onMouseLeave={() => setHoverIdx(null)}
+          >
           {yTicks.map((tick, i) => {
             const y = toY(tick);
             return (
@@ -304,7 +336,8 @@ export const CashflowTrendChart: React.FC<CashflowTrendChartProps> = ({
               />
             );
           })}
-        </svg>
+          </svg>
+        </div>
       </div>
     </div>
   );
@@ -361,8 +394,8 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
   const activeSeg = segments.find((s) => s.categoryId === hoveredCatId);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col h-full">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-5 flex flex-col h-full">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 sm:mb-4">
         <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200">
           <button
             type="button"
@@ -740,6 +773,7 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
   onSelectMonth,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const width = 760;
@@ -786,14 +820,44 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
   const activeDisplay =
     hovered || (activeMonthKey ? data.find((p) => p.monthKey === activeMonthKey) ?? null : null);
 
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !activeMonthKey) return;
+    const activeIdx = data.findIndex((p) => p.monthKey === activeMonthKey);
+    if (activeIdx === -1) return;
+
+    const centerActiveMonth = () => {
+      const maxScroll = container.scrollWidth - container.clientWidth;
+      if (maxScroll <= 0) return;
+      const svgWidth = svgRef.current?.getBoundingClientRect().width || container.scrollWidth;
+      const centerX = ((pad.left + slotW * activeIdx + slotW / 2) / width) * svgWidth;
+      const targetLeft = Math.max(
+        0,
+        Math.min(maxScroll, centerX - container.clientWidth / 2)
+      );
+      container.scrollLeft = targetLeft;
+    };
+
+    const raf = requestAnimationFrame(centerActiveMonth);
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(centerActiveMonth);
+      observer.observe(container);
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+    };
+  }, [activeMonthKey, yearKey, data, slotW]);
+
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-5 flex flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 mb-2.5 sm:mb-4">
         <div>
           <h3 className="font-display text-sm font-semibold text-slate-900">
             {yearKey} 年度月底货币资产与借贷净值趋势
           </h3>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 mt-1 text-[11px] sm:text-xs text-slate-500">
             <span className="inline-flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-xs bg-teal-700 inline-block" />
               货币资产总额
@@ -819,7 +883,7 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
                 `${yearKey} 年度 · 月底家庭货币资产与借贷趋势`
               )
             }
-            className="inline-flex items-center gap-1 min-h-[34px] sm:min-h-0 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-1 min-h-[30px] sm:min-h-0 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
           >
             <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
             <span>导出 PNG</span>
@@ -829,7 +893,7 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
             onClick={() =>
               exportSvgElement(svgRef.current, `月底资产借贷趋势_${yearKey}年.svg`)
             }
-            className="inline-flex items-center gap-1 min-h-[34px] sm:min-h-0 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-1 min-h-[30px] sm:min-h-0 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
             <span>SVG</span>
@@ -837,15 +901,15 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
         </div>
       </div>
 
-      <div className="min-h-[32px] py-1.5 mb-2 flex items-center text-xs px-3 bg-slate-50 border border-slate-100 rounded-lg">
+      <div className="min-h-[28px] py-1 mb-1.5 sm:mb-2 flex items-center text-[11px] sm:text-xs px-2.5 sm:px-3 bg-slate-50 border border-slate-100 rounded-lg">
         {activeDisplay ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-700">
+          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-0.5 text-slate-700">
             <span className="font-semibold text-slate-900">{activeDisplay.monthKey}</span>
             <span className="font-mono-num">
-              货币资产：<strong className="text-teal-700">{formatCurrency(activeDisplay.totalAssets)}</strong>
+              资产：<strong className="text-teal-700">{formatCurrency(activeDisplay.totalAssets)}</strong>
             </span>
             <span className="font-mono-num">
-              借贷与信用卡：
+              借贷：
               <strong
                 className={
                   activeDisplay.totalLiabilities < 0 ? 'text-teal-700' : 'text-red-600'
@@ -855,7 +919,7 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
               </strong>
             </span>
             <span className="font-mono-num">
-              净货币资产：<strong className="text-indigo-700">{formatCurrency(activeDisplay.netAssets)}</strong>
+              净值：<strong className="text-indigo-700">{formatCurrency(activeDisplay.netAssets)}</strong>
             </span>
           </div>
         ) : (
@@ -863,14 +927,15 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
         )}
       </div>
 
-      <div className="w-full overflow-x-auto no-scrollbar">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto min-w-[520px] sm:min-w-[560px]"
-          style={{ fontFamily: '"DM Sans", "Noto Sans SC", sans-serif' }}
-          onMouseLeave={() => setHoverIdx(null)}
-        >
+      <div ref={scrollContainerRef} className="w-full overflow-x-auto no-scrollbar">
+        <div className="w-max sm:w-full pr-28 sm:pr-0">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${width} ${height}`}
+            className="w-[520px] sm:w-full h-auto"
+            style={{ fontFamily: '"DM Sans", "Noto Sans SC", sans-serif' }}
+            onMouseLeave={() => setHoverIdx(null)}
+          >
           {yTicks.map((tick, i) => {
             const y = toY(tick);
             return (
@@ -978,7 +1043,8 @@ export const AssetTrendChart: React.FC<AssetTrendChartProps> = ({
               pointerEvents="none"
             />
           ))}
-        </svg>
+          </svg>
+        </div>
       </div>
     </div>
   );
@@ -1023,8 +1089,8 @@ export const AssetAllocationChart: React.FC<AssetAllocationChartProps> = ({
   const activeSeg = segments.find((s) => s.category === hoveredCat);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col h-full">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-5 flex flex-col h-full">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 sm:mb-4">
         <div>
           <h3 className="font-display text-sm font-semibold text-slate-900">
             {monthKey} 货币资产配置结构

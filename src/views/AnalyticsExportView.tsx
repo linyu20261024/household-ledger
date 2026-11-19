@@ -121,16 +121,16 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 print-full">
+    <div className="space-y-3 sm:space-y-6 print-full">
       {/* Analytics Period & Export Toolbar */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5 sm:space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5 sm:gap-4">
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+      <section className="bg-white border border-slate-200 rounded-xl p-3 sm:p-5 space-y-2.5 sm:space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5 sm:gap-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200">
               <button
                 type="button"
                 onClick={() => onChangePeriodMode('month')}
-                className={`px-3 py-1.5 min-h-[34px] sm:min-h-0 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1 min-h-[30px] sm:min-h-0 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
                   periodMode === 'month'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -141,7 +141,7 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
               <button
                 type="button"
                 onClick={() => onChangePeriodMode('year')}
-                className={`px-3 py-1.5 min-h-[34px] sm:min-h-0 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1 min-h-[30px] sm:min-h-0 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
                   periodMode === 'year'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -159,14 +159,14 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
                   if (e.target.value) onChangeMonth(e.target.value);
                 }}
                 aria-label="选择分析月份"
-                className="h-10 sm:h-9 px-3 text-base sm:text-xs font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+                className="h-9 px-2.5 sm:px-3 text-sm sm:text-xs font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
               />
             ) : (
               <select
                 value={selectedYear}
                 onChange={(e) => onChangeYear(e.target.value)}
                 aria-label="选择分析年份"
-                className="h-10 sm:h-9 px-3 text-base sm:text-xs font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+                className="h-9 px-2.5 sm:px-3 text-sm sm:text-xs font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
               >
                 {availableYears.map((y) => (
                   <option key={y} value={y}>
@@ -176,9 +176,9 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
               </select>
             )}
 
-            <span className="text-xs text-slate-500">
-              正在分析：<strong className="text-slate-900">{report.periodLabel}</strong>
-              {selectedTagIds.length > 0 && `（已选 ${selectedTagIds.length} 个分类标签）`}
+            <span className="text-[11px] sm:text-xs text-slate-500">
+              当前：<strong className="text-slate-900">{report.periodLabel}</strong>
+              {selectedTagIds.length > 0 && `（已选 ${selectedTagIds.length} 个标签）`}
             </span>
           </div>
 
@@ -186,7 +186,7 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
             <button
               type="button"
               onClick={() => onExportExcel(report, scopedEntries)}
-              className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 h-10 sm:h-9 px-3.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>导出 {periodMode === 'month' ? '月度' : '年度'} Excel (.xlsx)</span>
@@ -194,7 +194,7 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
             <button
               type="button"
               onClick={handleExportCsv}
-              className="inline-flex items-center justify-center gap-1.5 h-10 sm:h-9 px-3.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-slate-500" />
               <span>导出 CSV</span>
@@ -202,7 +202,7 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
             <button
               type="button"
               onClick={handleExportJson}
-              className="inline-flex items-center justify-center gap-1.5 h-10 sm:h-9 px-3.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
               <FileJson className="w-3.5 h-3.5 text-slate-500" />
               <span>导出 JSON</span>
@@ -218,12 +218,12 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar sm:flex-wrap pt-3 border-t border-slate-100 no-print">
-          <span className="text-xs text-slate-500 shrink-0 mr-0.5">分类聚焦：</span>
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar sm:flex-wrap pt-2.5 border-t border-slate-100 no-print">
+          <span className="text-[11px] sm:text-xs text-slate-500 shrink-0 mr-0.5">分类聚焦：</span>
           <button
             type="button"
             onClick={() => setSelectedTagIds([])}
-            className={`shrink-0 min-h-[36px] sm:min-h-0 px-3 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md transition-colors whitespace-nowrap ${
+            className={`shrink-0 min-h-[28px] px-2 py-1 text-[11px] sm:text-xs rounded-md transition-colors whitespace-nowrap ${
               selectedTagIds.length === 0
                 ? 'bg-slate-900 text-white font-medium'
                 : 'bg-slate-100 text-slate-600 hover:text-slate-900'
@@ -238,14 +238,14 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
                 key={tag.id}
                 type="button"
                 onClick={() => toggleTag(tag.id)}
-                className={`shrink-0 inline-flex items-center gap-1.5 min-h-[36px] sm:min-h-0 px-3 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md transition-colors whitespace-nowrap ${
+                className={`shrink-0 inline-flex items-center gap-1 min-h-[28px] px-2 py-1 text-[11px] sm:text-xs rounded-md transition-colors whitespace-nowrap ${
                   active
                     ? 'bg-teal-700 text-white font-medium'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
                 }`}
               >
                 <span
-                  className="w-2 h-2 rounded-xs shrink-0"
+                  className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-xs shrink-0"
                   style={{ backgroundColor: active ? '#FFFFFF' : tag.color }}
                 />
                 <span>{tag.name}</span>
@@ -269,7 +269,7 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
       />
 
       {/* Split Charts: Category Breakdown + Member Contribution */}
-      <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-stretch">
+      <section className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-6 items-stretch">
         <div className="xl:col-span-6">
           <CategoryBreakdownChart
             periodLabel={report.periodLabel}
@@ -300,23 +300,23 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
         }}
       />
 
-      {/* Monthly Comparison Table / Mobile Cards */}
+      {/* Monthly Comparison Table / Mobile Compact Rows */}
       <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="font-display text-sm font-semibold text-slate-900">
               {selectedYear} 年度逐月收支与可支配收入对照表
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
               点击任意月份可切换至该月份按月分析视图
             </p>
           </div>
-          <span className="font-mono-num text-xs text-slate-500">
-            当期可支配收入 {formatCurrency(report.disposableIncome, true)}
+          <span className="font-mono-num text-[11px] sm:text-xs text-slate-500">
+            当期可支配 {formatCurrency(report.disposableIncome, true)}
           </span>
         </div>
 
-        {/* Mobile Cards */}
+        {/* Mobile Compact 2-Line Rows */}
         <div className="md:hidden divide-y divide-slate-100">
           {annualTrend.map((row) => {
             const ratio = row.income > 0 ? (row.expense / row.income) * 100 : 0;
@@ -329,41 +329,34 @@ export const AnalyticsExportView: React.FC<AnalyticsExportViewProps> = ({
                   onChangeMonth(row.monthKey);
                   onChangePeriodMode('month');
                 }}
-                className={`w-full text-left p-4 transition-colors ${
+                className={`w-full text-left px-3 py-2 space-y-0.5 transition-colors ${
                   isSelected ? 'bg-teal-50/70' : 'active:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono-num text-sm font-semibold text-slate-900">
-                    {row.monthKey}（{row.label}）
-                  </span>
-                  <span className="font-mono-num text-xs text-slate-500">
-                    硬性占比 {row.income > 0 ? formatPercent(ratio) : '—'}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono-num text-[13px] font-semibold text-slate-900">
+                      {row.monthKey}（{row.label}）
+                    </span>
+                    <span className="font-mono-num text-[11px] text-slate-400">
+                      占比 {row.income > 0 ? formatPercent(ratio) : '—'}
+                    </span>
+                  </div>
+                  <span
+                    className={`font-mono-num text-[13px] font-bold shrink-0 ${
+                      row.disposableIncome >= 0 ? 'text-sky-700' : 'text-red-600'
+                    }`}
+                  >
+                    {formatCurrency(row.disposableIncome, true)}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 mt-2.5 text-xs">
-                  <div>
-                    <div className="text-[11px] text-slate-400">总收入</div>
-                    <div className="font-mono-num font-medium text-teal-700 mt-0.5">
-                      {formatCurrency(row.income)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-slate-400">硬性支出</div>
-                    <div className="font-mono-num font-medium text-slate-900 mt-0.5">
-                      {formatCurrency(row.expense)}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[11px] text-slate-400">可支配收入</div>
-                    <div
-                      className={`font-mono-num font-semibold mt-0.5 ${
-                        row.disposableIncome >= 0 ? 'text-sky-700' : 'text-red-600'
-                      }`}
-                    >
-                      {formatCurrency(row.disposableIncome, true)}
-                    </div>
-                  </div>
+                <div className="flex items-center justify-between text-[11px] font-mono-num text-slate-500">
+                  <span>
+                    收 <strong className="text-teal-700 font-medium">{formatCurrency(row.income)}</strong>
+                    <span className="mx-1.5 text-slate-300">·</span>
+                    支 <strong className="text-slate-700 font-medium">{formatCurrency(row.expense)}</strong>
+                  </span>
+                  <span className="text-[10px] text-slate-400">可支配</span>
                 </div>
               </button>
             );

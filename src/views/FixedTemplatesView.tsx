@@ -84,15 +84,15 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       {/* Header & Baseline Metrics */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6">
-        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 pb-4 sm:pb-5 border-b border-slate-100">
+      <section className="bg-white border border-slate-200 rounded-xl p-3 sm:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-slate-100">
           <div>
-            <h2 className="font-display text-base font-semibold text-slate-900">
+            <h2 className="font-display text-sm sm:text-base font-semibold text-slate-900">
               每月固定硬性开支登记表
             </h2>
-            <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+            <p className="hidden sm:block text-xs text-slate-500 mt-1 max-w-2xl">
               将房贷房租、物业水电、教育托育、保险保费等每月刚性支出登记为固定模板，支持一键批量导入任意月份或全年，自动汇总进收支报表。
             </p>
           </div>
@@ -100,7 +100,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
             <button
               type="button"
               onClick={onExportExcel}
-              className="min-h-[40px] sm:min-h-[36px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              className="min-h-[36px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
               <span>导出 Excel</span>
@@ -108,7 +108,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
             <button
               type="button"
               onClick={onOpenExcelImport}
-              className="min-h-[40px] sm:min-h-[36px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              className="min-h-[36px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5 text-slate-500" />
               <span>导入 Excel</span>
@@ -116,7 +116,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
             <button
               type="button"
               onClick={onOpenAddTemplate}
-              className="col-span-2 sm:col-span-1 min-h-[42px] sm:min-h-[36px] inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              className="col-span-2 sm:col-span-1 min-h-[36px] inline-flex items-center justify-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>新增固定开支项</span>
@@ -124,31 +124,31 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6 pt-4 sm:pt-5">
+        <div className="grid grid-cols-3 gap-2 sm:gap-6 pt-3 sm:pt-5">
           <div>
-            <div className="text-[11px] sm:text-xs text-slate-500">每月硬性开支基线</div>
-            <div className="mt-1 font-mono-num text-lg sm:text-xl font-bold text-slate-900">
+            <div className="text-[10px] sm:text-xs text-slate-500">每月开支基线</div>
+            <div className="mt-0.5 sm:mt-1 font-mono-num text-sm sm:text-xl font-bold text-slate-900 truncate">
               {formatCurrency(monthlyBaseline)}
             </div>
           </div>
           <div>
-            <div className="text-[11px] sm:text-xs text-slate-500">折合年度刚性预算</div>
-            <div className="mt-1 font-mono-num text-lg sm:text-xl font-bold text-slate-900">
+            <div className="text-[10px] sm:text-xs text-slate-500">折合年度预算</div>
+            <div className="mt-0.5 sm:mt-1 font-mono-num text-sm sm:text-xl font-bold text-slate-900 truncate">
               {formatCurrency(annualBaseline)}
             </div>
           </div>
-          <div className="col-span-2 sm:col-span-1 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-            <div className="text-[11px] sm:text-xs text-slate-500">模板条目数量</div>
-            <div className="mt-1 font-mono-num text-base sm:text-xl font-bold text-slate-900">
-              {activeTemplates.length} 项启用 / {templates.length} 项总计
+          <div>
+            <div className="text-[10px] sm:text-xs text-slate-500">启用 / 总数</div>
+            <div className="mt-0.5 sm:mt-1 font-mono-num text-sm sm:text-xl font-bold text-slate-900 truncate">
+              {activeTemplates.length} / {templates.length} 项
             </div>
           </div>
         </div>
       </section>
 
       {/* Batch Generate Toolbar */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2.5 sm:gap-3">
+      <section className="bg-white border border-slate-200 rounded-xl p-3 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
             <label htmlFor="batch-month" className="text-xs font-medium text-slate-700 shrink-0">
               目标月份：
@@ -160,25 +160,25 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
               onChange={(e) => {
                 if (e.target.value) setTargetMonth(e.target.value);
               }}
-              className="flex-1 sm:flex-initial h-10 sm:h-9 px-3 text-base sm:text-xs font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+              className="flex-1 sm:flex-initial h-9 px-3 text-sm sm:text-xs font-mono-num bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
             />
           </div>
-          <div className="grid grid-cols-1 sm:flex items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex items-center gap-2">
             <button
               type="button"
               onClick={handleGenerateMonth}
-              className="min-h-[42px] sm:min-h-[36px] inline-flex items-center justify-center gap-1.5 px-4 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              className="min-h-[36px] inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
-              <CalendarCheck2 className="w-3.5 h-3.5" />
-              <span>生成该月固定开支</span>
+              <CalendarCheck2 className="w-3.5 h-3.5 shrink-0" />
+              <span>生成该月开支</span>
             </button>
             <button
               type="button"
               onClick={handleGenerateYear}
-              className="min-h-[42px] sm:min-h-[36px] inline-flex items-center justify-center gap-1.5 px-4 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              className="min-h-[36px] inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             >
-              <CopyCheck className="w-3.5 h-3.5 text-slate-500" />
-              <span>补齐 {selectedYear} 全年未登记月份</span>
+              <CopyCheck className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span>补齐 {selectedYear} 全年</span>
             </button>
           </div>
         </div>
@@ -193,7 +193,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
       {/* Templates List (Search + Mobile Cards + Desktop Table) */}
       <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         {templates.length > 0 && (
-          <div className="p-3.5 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center gap-2.5 no-print">
+          <div className="p-2.5 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center gap-2 no-print">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -201,7 +201,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="搜索固定开支名称、分类标签、成员或备注..."
-                className="w-full h-10 sm:h-9 pl-9 pr-8 text-base sm:text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:border-teal-600"
+                className="w-full h-9 pl-9 pr-8 text-sm sm:text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:border-teal-600"
               />
               {searchQuery && (
                 <button
@@ -220,7 +220,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
                 value={memberFilter}
                 onChange={(e) => setMemberFilter(e.target.value)}
                 aria-label="按责任成员筛选"
-                className="h-10 sm:h-9 px-3 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+                className="h-9 px-2.5 sm:px-3 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
               >
                 <option value="all">全部成员</option>
                 {DEFAULT_MEMBERS.map((m) => (
@@ -234,7 +234,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'paused')}
                 aria-label="按启用状态筛选"
-                className="h-10 sm:h-9 px-3 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+                className="h-9 px-2.5 sm:px-3 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
               >
                 <option value="all">全部状态</option>
                 <option value="active">仅启用中</option>
@@ -277,7 +277,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
           )
         ) : (
           <>
-            {/* Mobile Card List */}
+            {/* Mobile Compact Rows */}
             <div className="md:hidden divide-y divide-slate-100">
               {sortedTemplates.map((tpl) => {
                 const tag = tagMap.get(tpl.categoryId);
@@ -285,75 +285,76 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
                 return (
                   <div
                     key={tpl.id}
-                    className={`p-4 space-y-2.5 ${!tpl.active ? 'opacity-65' : ''}`}
+                    className={`px-3 py-2 space-y-1 ${!tpl.active ? 'opacity-60' : ''}`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-900">{tpl.title}</div>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 mt-1">
-                          <span className="font-mono-num">每月 {tpl.dueDay} 日</span>
-                          <span aria-hidden="true">·</span>
-                          <span className="inline-flex items-center gap-1">
-                            <span
-                              className="w-2 h-2 rounded-xs shrink-0"
-                              style={{ backgroundColor: tag?.color || '#64748B' }}
-                            />
-                            <span>{tag?.name || '未分类'}</span>
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span>{tpl.member}</span>
-                        </div>
-                        {tpl.notes && (
-                          <div className="text-[11px] text-slate-400 mt-1">{tpl.notes}</div>
-                        )}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-2 h-2 rounded-xs shrink-0"
+                          style={{ backgroundColor: tag?.color || '#64748B' }}
+                        />
+                        <span className="font-mono-num text-[11px] text-slate-500 shrink-0">
+                          {tpl.dueDay}日
+                        </span>
+                        <span className="text-[13px] font-semibold text-slate-900 truncate">
+                          {tpl.title}
+                        </span>
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-mono-num text-base font-bold text-slate-900">
-                          {formatCurrency(tpl.amount)}
-                        </div>
-                        <div
-                          className={`text-[11px] mt-0.5 ${
-                            isSyncedThisMonth ? 'text-teal-700 font-medium' : 'text-slate-400'
-                          }`}
-                        >
-                          {isSyncedThisMonth ? `${selectedMonth} 已登记` : `${selectedMonth} 未生成`}
-                        </div>
-                      </div>
+                      <span className="font-mono-num text-[13px] font-bold text-slate-900 whitespace-nowrap shrink-0">
+                        {formatCurrency(tpl.amount)}
+                      </span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-50">
-                      <button
-                        type="button"
-                        onClick={() => onToggleTemplateActive(tpl.id)}
-                        className={`min-h-[38px] inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                          tpl.active
-                            ? 'text-teal-800 bg-teal-50 hover:bg-teal-100'
-                            : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
-                        }`}
-                      >
-                        <Power className="w-3.5 h-3.5" />
-                        <span>{tpl.active ? '启用中' : '已暂停'}</span>
-                      </button>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[11px] text-slate-500 truncate min-w-0">
+                        <span>{tag?.name || '未分类'}</span>
+                        <span className="mx-1 text-slate-300">·</span>
+                        <span>{tpl.member}</span>
+                        <span className="mx-1 text-slate-300">·</span>
+                        <span
+                          className={
+                            isSyncedThisMonth ? 'text-teal-700 font-medium' : 'text-slate-400'
+                          }
+                        >
+                          {isSyncedThisMonth ? '本月已登记' : '本月未生成'}
+                        </span>
+                      </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => onToggleTemplateActive(tpl.id)}
+                          className={`px-1.5 py-0.5 inline-flex items-center gap-1 rounded text-[11px] font-medium transition-colors ${
+                            tpl.active
+                              ? 'text-teal-800 bg-teal-50'
+                              : 'text-slate-500 bg-slate-100'
+                          }`}
+                        >
+                          <Power className="w-3 h-3" />
+                          <span>{tpl.active ? '启用' : '暂停'}</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => onEditTemplate(tpl)}
-                          className="min-h-[38px] px-3 inline-flex items-center gap-1 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg"
+                          className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
+                          aria-label="编辑模板"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                          <span>编辑</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => onDeleteTemplate(tpl.id)}
-                          className="min-w-[38px] min-h-[38px] flex items-center justify-center text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 rounded-lg"
+                          className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
                           aria-label="删除模板"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
+
+                    {tpl.notes && (
+                      <div className="text-[11px] text-slate-400 truncate">{tpl.notes}</div>
+                    )}
                   </div>
                 );
               })}

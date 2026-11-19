@@ -163,7 +163,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       </header>
 
       {/* Non-sticky Mobile Period Control Bar (scrolls naturally, keeps sticky chrome <15% height) */}
-      <div className="lg:hidden bg-white border-b border-slate-200 px-3 sm:px-6 py-2 flex items-center justify-between gap-2 no-print">
+      <div className="lg:hidden bg-white border-b border-slate-200 px-2.5 sm:px-6 py-1.5 flex items-center justify-between gap-2 no-print">
         <div
           className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 shrink-0"
           role="group"
@@ -172,7 +172,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             type="button"
             onClick={() => onChangePeriodMode('month')}
-            className={`px-3 min-h-[34px] text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+            className={`px-2.5 min-h-[30px] text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
               periodMode === 'month'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600'
@@ -183,7 +183,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             type="button"
             onClick={() => onChangePeriodMode('year')}
-            className={`px-3 min-h-[34px] text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+            className={`px-2.5 min-h-[30px] text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
               periodMode === 'year'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600'
@@ -194,11 +194,11 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         {periodMode === 'month' ? (
-          <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50/70 min-h-[38px]">
+          <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50/70 min-h-[34px]">
             <button
               type="button"
               onClick={() => onChangeMonth(stepMonth(selectedMonth, -1))}
-              className="min-w-[38px] min-h-[38px] flex items-center justify-center text-slate-600 active:bg-slate-200/70 rounded-l-lg"
+              className="min-w-[34px] min-h-[34px] flex items-center justify-center text-slate-600 active:bg-slate-200/70 rounded-l-lg"
               aria-label="上一月"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -210,12 +210,12 @@ export const TopBar: React.FC<TopBarProps> = ({
                 if (e.target.value) onChangeMonth(e.target.value);
               }}
               aria-label="选择月份"
-              className="px-1.5 text-xs font-semibold font-mono-num text-slate-900 bg-transparent focus:outline-none text-center w-[108px]"
+              className="px-1 text-xs font-semibold font-mono-num text-slate-900 bg-transparent focus:outline-none text-center w-[104px]"
             />
             <button
               type="button"
               onClick={() => onChangeMonth(stepMonth(selectedMonth, 1))}
-              className="min-w-[38px] min-h-[38px] flex items-center justify-center text-slate-600 active:bg-slate-200/70 rounded-r-lg"
+              className="min-w-[34px] min-h-[34px] flex items-center justify-center text-slate-600 active:bg-slate-200/70 rounded-r-lg"
               aria-label="下一月"
             >
               <ChevronRight className="w-4 h-4" />
@@ -226,7 +226,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             value={selectedYear}
             onChange={(e) => onChangeYear(e.target.value)}
             aria-label="选择年份"
-            className="min-h-[38px] px-3 text-xs font-semibold font-mono-num text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
+            className="min-h-[34px] px-2.5 text-xs font-semibold font-mono-num text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
           >
             {availableYears.map((y) => (
               <option key={y} value={y}>

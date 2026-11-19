@@ -69,24 +69,24 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const recentEntries = useMemo(() => {
     const q = entrySearch.trim().toLowerCase();
     const sorted = [...scopedEntries].sort((a, b) => b.date.localeCompare(a.date));
-    if (!q) return sorted.slice(0, 8);
+    if (!q) return sorted.slice(0, 12);
     return sorted
       .filter((e) => {
         const tagName = tagMap.get(e.categoryId)?.name || '';
         const hay = [e.title, tagName, e.member, e.notes || '', e.date].join(' ').toLowerCase();
         return hay.includes(q);
       })
-      .slice(0, 20);
+      .slice(0, 24);
   }, [scopedEntries, entrySearch, tagMap]);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       {/* Monthly Recurring Template Quick Sync Prompt */}
       {periodMode === 'month' && missingTemplatesForMonth.length > 0 && (
-        <div className="bg-white border border-teal-200 rounded-xl p-4 sm:px-5 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
-            <CalendarCheck2 className="w-5 h-5 text-teal-700 shrink-0 mt-0.5 sm:mt-0" />
-            <div className="text-xs sm:text-sm text-slate-800 leading-relaxed">
+        <div className="bg-white border border-teal-200 rounded-xl p-3 sm:px-5 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
+          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0">
+            <CalendarCheck2 className="w-4 h-4 sm:w-5 sm:h-5 text-teal-700 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="text-xs sm:text-sm text-slate-800 leading-snug">
               <span className="font-semibold">{selectedMonth}</span> 尚有{' '}
               <span className="font-mono-num font-semibold text-teal-800">
                 {missingTemplatesForMonth.length}
@@ -101,7 +101,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <button
             type="button"
             onClick={() => onGenerateMonthTemplates(selectedMonth)}
-            className="w-full sm:w-auto min-h-[42px] sm:min-h-[36px] px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="w-full sm:w-auto min-h-[36px] px-4 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             一键登记本月固定开支
           </button>
@@ -109,29 +109,29 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       )}
 
       {/* 4-Column KPI Strip (2x2 on mobile) */}
-      <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4" aria-label="核心收支指标">
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5">
+      <section className="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4" aria-label="核心收支指标">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 sm:p-5">
           <div className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">
             {report.periodLabel} · 总收入
           </div>
-          <div className="mt-1.5 sm:mt-2 font-mono-num text-lg sm:text-2xl font-bold text-slate-900 truncate">
+          <div className="mt-1 sm:mt-2 font-mono-num text-base sm:text-2xl font-bold text-slate-900 truncate">
             {formatCurrency(report.totalIncome)}
           </div>
-          <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-slate-500 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <div className="mt-0.5 sm:mt-2 text-[10px] sm:text-xs text-slate-500 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <span>{report.incomeCount} 笔入账</span>
             <span className="hidden sm:inline" aria-hidden="true">·</span>
             <span className="font-mono-num truncate">{formatDelta(report.totalIncome, report.previousIncome)}</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 sm:p-5">
           <div className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">
             {report.periodLabel} · 硬性支出
           </div>
-          <div className="mt-1.5 sm:mt-2 font-mono-num text-lg sm:text-2xl font-bold text-slate-900 truncate">
+          <div className="mt-1 sm:mt-2 font-mono-num text-base sm:text-2xl font-bold text-slate-900 truncate">
             {formatCurrency(report.totalExpense)}
           </div>
-          <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-slate-500 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <div className="mt-0.5 sm:mt-2 text-[10px] sm:text-xs text-slate-500 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <span>{report.expenseCount} 项</span>
             <span aria-hidden="true">·</span>
             <span className="font-mono-num truncate">
@@ -140,18 +140,18 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 sm:p-5">
           <div className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">
             {report.periodLabel} · 可支配收入
           </div>
           <div
-            className={`mt-1.5 sm:mt-2 font-mono-num text-lg sm:text-2xl font-bold truncate ${
+            className={`mt-1 sm:mt-2 font-mono-num text-base sm:text-2xl font-bold truncate ${
               report.disposableIncome >= 0 ? 'text-teal-700' : 'text-red-600'
             }`}
           >
             {formatCurrency(report.disposableIncome, true)}
           </div>
-          <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-slate-500 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <div className="mt-0.5 sm:mt-2 text-[10px] sm:text-xs text-slate-500 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <span>比例 {formatPercent(report.disposableRate)}</span>
             <span className="hidden sm:inline" aria-hidden="true">·</span>
             <span className="font-mono-num hidden sm:inline">
@@ -160,10 +160,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 sm:p-5">
           <div className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">硬性支出占比</div>
           <div
-            className={`mt-1.5 sm:mt-2 font-mono-num text-lg sm:text-2xl font-bold ${
+            className={`mt-1 sm:mt-2 font-mono-num text-base sm:text-2xl font-bold ${
               report.expenseRatio > 70
                 ? 'text-red-600'
                 : report.expenseRatio > 50
@@ -173,7 +173,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           >
             {formatPercent(report.expenseRatio)}
           </div>
-          <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs text-slate-500 truncate">
+          <div className="mt-0.5 sm:mt-2 text-[10px] sm:text-xs text-slate-500 truncate">
             <span>
               {report.totalIncome === 0
                 ? '暂无收入对照'
@@ -188,29 +188,29 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       </section>
 
       {/* Month-End Monetary Assets & Credit/Loans Strip */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
-        <div className="flex items-start gap-3">
-          <Landmark className="w-5 h-5 text-teal-700 mt-0.5 shrink-0" />
-          <div>
+      <section className="bg-white border border-slate-200 rounded-xl p-3 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-6">
+        <div className="flex items-center sm:items-start gap-2.5 sm:gap-3">
+          <Landmark className="w-4 h-4 sm:w-5 sm:h-5 text-teal-700 sm:mt-0.5 shrink-0" />
+          <div className="min-w-0">
             <div className="text-xs font-semibold text-slate-900">
               {assetSummary.monthKey} 月底家庭资产借贷盘点
             </div>
-            <div className="text-xs text-slate-500 mt-0.5">
+            <div className="hidden sm:block text-xs text-slate-500 mt-0.5">
               统计储蓄卡、货币基金、积存金、股票、借出及应收款，及借贷与信用卡支出额度
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-8">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-8">
           <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-8 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
             <div>
-              <div className="text-[11px] text-slate-500">货币资产</div>
+              <div className="text-[10px] sm:text-[11px] text-slate-500">货币资产</div>
               <div className="font-mono-num text-xs sm:text-sm font-bold text-teal-700 mt-0.5 truncate">
                 {formatCurrency(assetSummary.totalAssets)}
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-slate-500">借贷与信用</div>
+              <div className="text-[10px] sm:text-[11px] text-slate-500">借贷与信用</div>
               <div
                 className={`font-mono-num text-xs sm:text-sm font-bold mt-0.5 truncate ${
                   assetSummary.totalLiabilities < 0 ? 'text-teal-700' : 'text-red-600'
@@ -220,7 +220,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-slate-500">净货币资产</div>
+              <div className="text-[10px] sm:text-[11px] text-slate-500">净货币资产</div>
               <div className="font-mono-num text-xs sm:text-sm font-bold text-slate-900 mt-0.5 truncate">
                 {formatCurrency(assetSummary.netMonetaryAssets)}
               </div>
@@ -230,7 +230,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <button
             type="button"
             onClick={onNavigateAssets}
-            className="w-full sm:w-auto min-h-[42px] sm:min-h-[34px] inline-flex items-center justify-center gap-1 px-3.5 py-2 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+            className="w-full sm:w-auto min-h-[34px] inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
           >
             <span>管理资产借贷</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -239,7 +239,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       </section>
 
       {/* Main Charts Row: 7 + 5 columns */}
-      <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-stretch">
+      <section className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-6 items-stretch">
         <div className="xl:col-span-7">
           <CashflowTrendChart
             periodMode={periodMode}
@@ -262,14 +262,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       </section>
 
       {/* Bottom Split: Pending Fixed Items + Recent Ledger */}
-      <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6">
+      <section className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-6">
         <div className="xl:col-span-5 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
-          <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="px-3 sm:px-5 py-2.5 sm:py-4 border-b border-slate-200 flex items-center justify-between">
             <div>
               <h3 className="font-display text-sm font-semibold text-slate-900">
                 待扣款硬性支出提醒
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
                 {periodMode === 'month'
                   ? `${report.periodLabel} 尚未确认扣款的项目`
                   : `${report.periodLabel} 待处理固定账单`}
@@ -281,8 +281,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </div>
 
           {pendingFixed.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500 flex-1 flex flex-col items-center justify-center">
-              <Check className="w-6 h-6 text-teal-600 mb-2" />
+            <div className="p-6 sm:p-8 text-center text-xs text-slate-500 flex-1 flex flex-col items-center justify-center">
+              <Check className="w-5 h-5 sm:w-6 sm:h-6 text-teal-600 mb-1.5 sm:mb-2" />
               <p className="font-medium text-slate-700">
                 {scopedEntries.length === 0 ? '暂无待扣款硬性支出' : '当前周期所有硬性支出已确认扣款'}
               </p>
@@ -294,18 +294,18 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 return (
                   <div
                     key={entry.id}
-                    className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
+                    className="px-3 sm:px-5 py-2 sm:py-3 flex items-center justify-between gap-2.5 hover:bg-slate-50/80 transition-colors"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-slate-900 truncate">
+                      <div className="text-[13px] sm:text-sm font-medium text-slate-900 truncate">
                         {entry.title}
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 mt-0.5">
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] sm:text-xs text-slate-500 mt-0.5">
                         <span className="font-mono-num">{entry.date}</span>
                         <span aria-hidden="true">·</span>
-                        <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1">
                           <span
-                            className="w-2 h-2 rounded-xs inline-block"
+                            className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-xs inline-block"
                             style={{ backgroundColor: tag?.color || '#64748B' }}
                           />
                           {tag?.name || '未分类'}
@@ -315,14 +315,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-                      <span className="font-mono-num text-sm font-semibold text-slate-900">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                      <span className="font-mono-num text-[13px] sm:text-sm font-semibold text-slate-900">
                         {formatCurrency(entry.amount)}
                       </span>
                       <button
                         type="button"
                         onClick={() => onToggleEntryStatus(entry.id)}
-                        className="min-h-[38px] sm:min-h-[30px] px-3 sm:px-2.5 py-1 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-md transition-colors whitespace-nowrap"
+                        className="min-h-[30px] px-2.5 py-1 text-[11px] sm:text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-md transition-colors whitespace-nowrap"
                       >
                         标记已扣
                       </button>
@@ -335,16 +335,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
 
         <div className="xl:col-span-7 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
-          <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="px-3 sm:px-5 py-2.5 sm:py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 className="font-display text-sm font-semibold text-slate-900">
                 近期收支明细
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
                 {report.periodLabel} 已登记的收入与硬性开支
               </p>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               {scopedEntries.length > 0 && (
                 <div className="relative flex-1 sm:w-52">
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -353,7 +353,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                     value={entrySearch}
                     onChange={(e) => setEntrySearch(e.target.value)}
                     placeholder="检索账目名称/分类/成员..."
-                    className="w-full h-9 sm:h-8 pl-8 pr-7 text-sm sm:text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:border-teal-600"
+                    className="w-full h-8 pl-8 pr-7 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:border-teal-600"
                   />
                   {entrySearch && (
                     <button
@@ -370,7 +370,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <button
                 type="button"
                 onClick={onNavigateReports}
-                className="min-h-[36px] inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-800 whitespace-nowrap shrink-0"
+                className="min-h-[32px] inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-800 whitespace-nowrap shrink-0"
               >
                 <span>完整报表</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -380,7 +380,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
           {recentEntries.length === 0 ? (
             scopedEntries.length > 0 && entrySearch.trim() ? (
-              <div className="p-8 text-center flex-1 flex flex-col items-center justify-center gap-2">
+              <div className="p-6 sm:p-8 text-center flex-1 flex flex-col items-center justify-center gap-2">
                 <p className="text-xs text-slate-500">未找到包含「{entrySearch.trim()}」的收支记录</p>
                 <button
                   type="button"
@@ -391,7 +391,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="p-8 sm:p-10 text-center flex-1 flex flex-col items-center justify-center">
+              <div className="p-6 sm:p-10 text-center flex-1 flex flex-col items-center justify-center">
                 <p className="text-sm font-medium text-slate-700">当前周期尚无收支记录</p>
                 <p className="text-xs text-slate-500 mt-1 mb-4">
                   点击右上角「记一笔」手工录入，或在菜单中导入 Excel 账本数据
@@ -399,7 +399,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 <button
                   type="button"
                   onClick={onOpenAddEntry}
-                  className="min-h-[42px] sm:min-h-[36px] px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors cursor-pointer"
+                  className="min-h-[36px] px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors cursor-pointer"
                 >
                   登记第一笔记录
                 </button>
@@ -407,34 +407,25 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             )
           ) : (
             <>
-              {/* Mobile Card List */}
+              {/* Mobile Compact Ledger Rows */}
               <div className="md:hidden divide-y divide-slate-100">
                 {recentEntries.map((entry) => {
                   const tag = tagMap.get(entry.categoryId);
                   const isInc = entry.type === 'income';
                   return (
-                    <div key={entry.id} className="px-4 py-3 space-y-1.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-slate-900 truncate">
+                    <div key={entry.id} className="px-3 py-2 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className="w-2 h-2 rounded-xs shrink-0"
+                            style={{ backgroundColor: tag?.color || '#64748B' }}
+                          />
+                          <span className="text-[13px] font-medium text-slate-900 truncate">
                             {entry.title}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 mt-0.5">
-                            <span className="font-mono-num">{entry.date}</span>
-                            <span aria-hidden="true">·</span>
-                            <span className="inline-flex items-center gap-1">
-                              <span
-                                className="w-2 h-2 rounded-xs shrink-0"
-                                style={{ backgroundColor: tag?.color || '#64748B' }}
-                              />
-                              <span>{tag?.name || '未分类'}</span>
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span>{entry.member}</span>
-                          </div>
+                          </span>
                         </div>
                         <div
-                          className={`font-mono-num text-sm font-semibold whitespace-nowrap shrink-0 ${
+                          className={`font-mono-num text-[13px] font-semibold whitespace-nowrap shrink-0 ${
                             isInc ? 'text-teal-700' : 'text-slate-900'
                           }`}
                         >
@@ -443,37 +434,49 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-1">
-                        <button
-                          type="button"
-                          onClick={() => onToggleEntryStatus(entry.id)}
-                          className={`min-h-[34px] inline-flex items-center gap-1 text-xs font-medium ${
-                            entry.status === 'paid' ? 'text-teal-700' : 'text-amber-700'
-                          }`}
-                        >
-                          {entry.status === 'paid' ? (
-                            <Check className="w-3.5 h-3.5" />
-                          ) : (
-                            <Clock className="w-3.5 h-3.5" />
-                          )}
-                          <span>
-                            {isInc
-                              ? entry.status === 'paid'
-                                ? '已入账'
-                                : '待入账'
-                              : entry.status === 'paid'
-                                ? '已扣款'
-                                : '待扣款'}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onEditEntry(entry)}
-                          className="min-h-[34px] px-2.5 inline-flex items-center gap-1 text-xs text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-md"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          <span>编辑</span>
-                        </button>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[11px] text-slate-500 truncate min-w-0">
+                          <span className="font-mono-num">{entry.date.slice(5)}</span>
+                          <span className="mx-1 text-slate-300">·</span>
+                          <span>{tag?.name || '未分类'}</span>
+                          <span className="mx-1 text-slate-300">·</span>
+                          <span>{entry.member}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => onToggleEntryStatus(entry.id)}
+                            className={`px-1.5 py-0.5 inline-flex items-center gap-1 text-[11px] font-medium rounded ${
+                              entry.status === 'paid'
+                                ? 'text-teal-700 bg-teal-50/80'
+                                : 'text-amber-700 bg-amber-50'
+                            }`}
+                          >
+                            {entry.status === 'paid' ? (
+                              <Check className="w-3 h-3" />
+                            ) : (
+                              <Clock className="w-3 h-3" />
+                            )}
+                            <span>
+                              {isInc
+                                ? entry.status === 'paid'
+                                  ? '已入账'
+                                  : '待入账'
+                                : entry.status === 'paid'
+                                  ? '已扣款'
+                                  : '待扣款'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEditEntry(entry)}
+                            className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
+                            aria-label="编辑记录"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

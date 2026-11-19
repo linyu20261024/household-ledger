@@ -225,6 +225,11 @@ export function App() {
   const [editingAsset, setEditingAsset] = useState<AssetAccountItem | null>(null);
   const [defaultAssetDirection, setDefaultAssetDirection] = useState<AccountDirection>('asset');
   const [excelImportOpen, setExcelImportOpen] = useState(false);
+  const [lastCopyUndo, setLastCopyUndo] = useState<{
+    monthKey: string;
+    sourceMonth: string;
+    createdIds: string[];
+  } | null>(null);
 
   const availableYears = useMemo(() => {
     const set = new Set<string>(['2025', '2026', '2027']);
@@ -621,8 +626,22 @@ export function App() {
 
     if (toAdd.length > 0) {
       setAssetAccounts((prev) => [...toAdd, ...prev]);
+      setLastCopyUndo({
+        monthKey,
+        sourceMonth,
+        createdIds: toAdd.map((item) => item.id),
+      });
     }
     return toAdd.length;
+  };
+
+  const handleUndoCopyAssets = (): number => {
+    if (!lastCopyUndo) return 0;
+    const idSet = new Set(lastCopyUndo.createdIds);
+    const removedCount = assetAccounts.filter((a) => idSet.has(a.id)).length;
+    setAssetAccounts((prev) => prev.filter((a) => !idSet.has(a.id)));
+    setLastCopyUndo(null);
+    return removedCount;
   };
 
   // Excel Export & Import Handlers
@@ -734,7 +753,7 @@ export function App() {
           onOpenMobileNav={() => setMobileNavOpen(true)}
         />
 
-        <main className="flex-1 px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 lg:pb-8 max-w-[1360px] w-full mx-auto">
+        <main className="flex-1 px-2.5 sm:px-6 lg:px-8 py-3 sm:py-6 pb-20 lg:pb-8 max-w-[1360px] w-full mx-auto">
           {activeNav === 'overview' && (
             <OverviewView
               periodMode={periodMode}
@@ -816,7 +835,9 @@ export function App() {
               summary={assetSummary}
               annualTrend={assetAnnualTrend}
               copySourceMonth={copySourceMonth}
+              lastCopyUndo={lastCopyUndo}
               onCopyFromAdjacentMonth={handleCopyAssetsFromAdjacentMonth}
+              onUndoCopyAssets={handleUndoCopyAssets}
               onOpenAddAccount={(direction) => {
                 setEditingAsset(null);
                 setDefaultAssetDirection(direction);
