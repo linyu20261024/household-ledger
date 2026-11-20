@@ -69,17 +69,43 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     .filter((e) => e.type === 'fixed_expense' && e.status === 'pending')
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const recentEntries = useMemo(() => {
+  const {
+    incomeList,
+    expenseList,
+    incomeTotalCount,
+    expenseTotalCount,
+    incomeTotalAmount,
+    expenseTotalAmount,
+    totalMatchedCount,
+  } = useMemo(() => {
     const q = entrySearch.trim().toLowerCase();
-    const sorted = [...scopedEntries].sort((a, b) => b.date.localeCompare(a.date));
-    if (!q) return sorted.slice(0, 12);
-    return sorted
-      .filter((e) => {
-        const tagName = tagMap.get(e.categoryId)?.name || '';
-        const hay = [e.title, tagName, e.member, e.notes || '', e.date].join(' ').toLowerCase();
-        return hay.includes(q);
-      })
-      .slice(0, 24);
+    const matchesSearch = (e: LedgerEntry) => {
+      if (!q) return true;
+      const tagName = tagMap.get(e.categoryId)?.name || '';
+      const hay = [e.title, tagName, e.member, e.notes || '', e.date].join(' ').toLowerCase();
+      return hay.includes(q);
+    };
+
+    const byAmountDesc = (a: LedgerEntry, b: LedgerEntry) =>
+      b.amount - a.amount || b.date.localeCompare(a.date);
+
+    const incomes = scopedEntries
+      .filter((e) => e.type === 'income' && matchesSearch(e))
+      .sort(byAmountDesc);
+    const expenses = scopedEntries
+      .filter((e) => e.type === 'fixed_expense' && matchesSearch(e))
+      .sort(byAmountDesc);
+
+    const limit = q ? 24 : 15;
+    return {
+      incomeList: incomes.slice(0, limit),
+      expenseList: expenses.slice(0, limit),
+      incomeTotalCount: incomes.length,
+      expenseTotalCount: expenses.length,
+      incomeTotalAmount: incomes.reduce((acc, e) => acc + e.amount, 0),
+      expenseTotalAmount: expenses.reduce((acc, e) => acc + e.amount, 0),
+      totalMatchedCount: incomes.length + expenses.length,
+    };
   }, [scopedEntries, entrySearch, tagMap]);
 
   return (
@@ -364,7 +390,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 近期收支明细
               </h3>
               <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
-                {report.periodLabel} 已登记的收入与硬性开支
+                {report.periodLabel} 收入与硬性开支分别列出（按金额从多到少排列）
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -401,7 +427,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
           </div>
 
-          {recentEntries.length === 0 ? (
+          {totalMatchedCount === 0 ? (
             scopedEntries.length > 0 && entrySearch.trim() ? (
               <div className="p-6 sm:p-8 text-center flex-1 flex flex-col items-center justify-center gap-2">
                 <p className="text-xs text-slate-500">未找到包含「{entrySearch.trim()}」的收支记录</p>
@@ -429,186 +455,262 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               </div>
             )
           ) : (
-            <>
-              {/* Mobile Compact Ledger Rows */}
-              <div className="md:hidden divide-y divide-slate-100">
-                {recentEntries.map((entry) => {
-                  const tag = tagMap.get(entry.categoryId);
-                  const isInc = entry.type === 'income';
-                  return (
-                    <div key={entry.id} className="px-3 py-2 space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span
-                            className="w-2 h-2 rounded-xs shrink-0"
-                            style={{ backgroundColor: tag?.color || '#64748B' }}
-                          />
-                          <span className="text-[13px] font-medium text-slate-900 truncate">
-                            {entry.title}
-                          </span>
-                        </div>
-                        <div
-                          className={`font-mono-num text-[13px] font-semibold whitespace-nowrap shrink-0 ${
-                            isInc ? 'text-teal-700' : 'text-slate-900'
-                          }`}
-                        >
-                          {isInc ? '+' : '-'}
-                          {formatCurrency(entry.amount)}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-[11px] text-slate-500 truncate min-w-0">
-                          <span className="font-mono-num">{entry.date.slice(5)}</span>
-                          <span className="mx-1 text-slate-300">·</span>
-                          <span>{tag?.name || '未分类'}</span>
-                          <span className="mx-1 text-slate-300">·</span>
-                          <span>{entry.member}</span>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => onToggleEntryStatus(entry.id)}
-                            className={`px-1.5 py-0.5 inline-flex items-center gap-1 text-[11px] font-medium rounded ${
-                              entry.status === 'paid'
-                                ? 'text-teal-700 bg-teal-50/80'
-                                : 'text-amber-700 bg-amber-50'
-                            }`}
-                          >
-                            {entry.status === 'paid' ? (
-                              <Check className="w-3 h-3" />
-                            ) : (
-                              <Clock className="w-3 h-3" />
-                            )}
-                            <span>
-                              {isInc
-                                ? entry.status === 'paid'
-                                  ? '已入账'
-                                  : '待入账'
-                                : entry.status === 'paid'
-                                  ? '已扣款'
-                                  : '待扣款'}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onEditEntry(entry)}
-                            className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
-                            aria-label="编辑记录"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDeleteEntry(entry.id)}
-                            className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
-                            aria-label="删除记录"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
+            <div className="divide-y divide-slate-200">
+              {(
+                [
+                  {
+                    key: 'income',
+                    title: '一、家庭收入',
+                    isInc: true,
+                    items: incomeList,
+                    totalCount: incomeTotalCount,
+                    totalAmount: incomeTotalAmount,
+                    emptyText: entrySearch.trim() ? '无匹配收入记录' : '当前周期暂无收入记录',
+                  },
+                  {
+                    key: 'fixed_expense',
+                    title: '二、硬性支出',
+                    isInc: false,
+                    items: expenseList,
+                    totalCount: expenseTotalCount,
+                    totalAmount: expenseTotalAmount,
+                    emptyText: entrySearch.trim() ? '无匹配支出记录' : '当前周期暂无硬性支出记录',
+                  },
+                ] as const
+              ).map((group) => (
+                <div key={group.key}>
+                  <div
+                    className={`px-3 sm:px-5 py-2 border-b border-slate-100 flex items-center justify-between gap-2 ${
+                      group.isInc ? 'bg-teal-50/40' : 'bg-slate-50/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`text-xs font-semibold ${
+                          group.isInc ? 'text-teal-800' : 'text-slate-800'
+                        }`}
+                      >
+                        {group.title}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono-num">
+                        {group.totalCount} 笔 · 金额降序
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                    <span
+                      className={`font-mono-num text-xs font-bold whitespace-nowrap ${
+                        group.isInc ? 'text-teal-700' : 'text-slate-900'
+                      }`}
+                    >
+                      {group.isInc ? '+' : '-'}
+                      {formatCurrency(group.totalAmount)}
+                    </span>
+                  </div>
 
-              {/* Desktop Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-medium text-slate-500">
-                      <th className="py-2.5 px-4">日期</th>
-                      <th className="py-2.5 px-4">项目名称</th>
-                      <th className="py-2.5 px-4">分类标签</th>
-                      <th className="py-2.5 px-4">状态</th>
-                      <th className="py-2.5 px-4 text-right">金额</th>
-                      <th className="py-2.5 px-4 text-right">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs">
-                    {recentEntries.map((entry) => {
-                      const tag = tagMap.get(entry.categoryId);
-                      const isInc = entry.type === 'income';
-                      return (
-                        <tr key={entry.id} className="hover:bg-slate-50/80 transition-colors h-10">
-                          <td className="py-2 px-4 font-mono-num text-slate-500 whitespace-nowrap">
-                            {entry.date}
-                          </td>
-                          <td className="py-2 px-4 font-medium text-slate-900 max-w-[180px] truncate">
-                            {entry.title}
-                          </td>
-                          <td className="py-2 px-4 text-slate-600 whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="w-2 h-2 rounded-xs shrink-0"
-                                style={{ backgroundColor: tag?.color || '#64748B' }}
-                              />
-                              <span>{tag?.name || '未分类'}</span>
-                            </span>
-                          </td>
-                          <td className="py-2 px-4 whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => onToggleEntryStatus(entry.id)}
-                              className={`inline-flex items-center gap-1 text-xs font-medium ${
-                                entry.status === 'paid'
-                                  ? 'text-teal-700 hover:text-teal-900'
-                                  : 'text-amber-700 hover:text-amber-900'
-                              }`}
-                            >
-                              {entry.status === 'paid' ? (
-                                <Check className="w-3.5 h-3.5" />
-                              ) : (
-                                <Clock className="w-3.5 h-3.5" />
-                              )}
-                              <span>
-                                {isInc
-                                  ? entry.status === 'paid'
-                                    ? '已入账'
-                                    : '待入账'
-                                  : entry.status === 'paid'
-                                    ? '已扣款'
-                                    : '待扣款'}
-                              </span>
-                            </button>
-                          </td>
-                          <td
-                            className={`py-2 px-4 text-right font-mono-num font-semibold whitespace-nowrap ${
-                              isInc ? 'text-teal-700' : 'text-slate-900'
-                            }`}
-                          >
-                            {isInc ? '+' : '-'}
-                            {formatCurrency(entry.amount)}
-                          </td>
-                          <td className="py-2 px-4 text-right whitespace-nowrap">
-                            <div className="inline-flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => onEditEntry(entry)}
-                                className="p-1 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100"
-                                aria-label="编辑记录"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onDeleteEntry(entry.id)}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
-                                aria-label="删除记录"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                  {group.items.length === 0 ? (
+                    <div className="px-3 sm:px-5 py-4 text-center text-xs text-slate-400">
+                      {group.emptyText}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Mobile Compact Rows */}
+                      <div className="md:hidden divide-y divide-slate-100">
+                        {group.items.map((entry) => {
+                          const tag = tagMap.get(entry.categoryId);
+                          return (
+                            <div key={entry.id} className="px-3 py-2 space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span
+                                    className="w-2 h-2 rounded-xs shrink-0"
+                                    style={{ backgroundColor: tag?.color || '#64748B' }}
+                                  />
+                                  <span className="text-[13px] font-medium text-slate-900 truncate">
+                                    {entry.title}
+                                  </span>
+                                </div>
+                                <div
+                                  className={`font-mono-num text-[13px] font-semibold whitespace-nowrap shrink-0 ${
+                                    group.isInc ? 'text-teal-700' : 'text-slate-900'
+                                  }`}
+                                >
+                                  {group.isInc ? '+' : '-'}
+                                  {formatCurrency(entry.amount)}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="text-[11px] text-slate-500 truncate min-w-0">
+                                  <span className="font-mono-num">{entry.date.slice(5)}</span>
+                                  <span className="mx-1 text-slate-300">·</span>
+                                  <span>{tag?.name || '未分类'}</span>
+                                  <span className="mx-1 text-slate-300">·</span>
+                                  <span>{entry.member}</span>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => onToggleEntryStatus(entry.id)}
+                                    className={`px-1.5 py-0.5 inline-flex items-center gap-1 text-[11px] font-medium rounded ${
+                                      entry.status === 'paid'
+                                        ? 'text-teal-700 bg-teal-50/80'
+                                        : 'text-amber-700 bg-amber-50'
+                                    }`}
+                                  >
+                                    {entry.status === 'paid' ? (
+                                      <Check className="w-3 h-3" />
+                                    ) : (
+                                      <Clock className="w-3 h-3" />
+                                    )}
+                                    <span>
+                                      {group.isInc
+                                        ? entry.status === 'paid'
+                                          ? '已入账'
+                                          : '待入账'
+                                        : entry.status === 'paid'
+                                          ? '已扣款'
+                                          : '待扣款'}
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditEntry(entry)}
+                                    className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
+                                    aria-label="编辑记录"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteEntry(entry.id)}
+                                    className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
+                                    aria-label="删除记录"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                          );
+                        })}
+                      </div>
+
+                      {/* Desktop Table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-100 bg-white text-[11px] font-medium text-slate-500">
+                              <th className="py-2 px-4">日期</th>
+                              <th className="py-2 px-4">项目名称</th>
+                              <th className="py-2 px-4">分类标签</th>
+                              <th className="py-2 px-4">状态</th>
+                              <th className="py-2 px-4 text-right">金额</th>
+                              <th className="py-2 px-4 text-right">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-xs">
+                            {group.items.map((entry) => {
+                              const tag = tagMap.get(entry.categoryId);
+                              return (
+                                <tr
+                                  key={entry.id}
+                                  className="hover:bg-slate-50/80 transition-colors h-10"
+                                >
+                                  <td className="py-2 px-4 font-mono-num text-slate-500 whitespace-nowrap">
+                                    {entry.date}
+                                  </td>
+                                  <td className="py-2 px-4 font-medium text-slate-900 max-w-[180px] truncate">
+                                    {entry.title}
+                                  </td>
+                                  <td className="py-2 px-4 text-slate-600 whitespace-nowrap">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <span
+                                        className="w-2 h-2 rounded-xs shrink-0"
+                                        style={{ backgroundColor: tag?.color || '#64748B' }}
+                                      />
+                                      <span>{tag?.name || '未分类'}</span>
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-4 whitespace-nowrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => onToggleEntryStatus(entry.id)}
+                                      className={`inline-flex items-center gap-1 text-xs font-medium ${
+                                        entry.status === 'paid'
+                                          ? 'text-teal-700 hover:text-teal-900'
+                                          : 'text-amber-700 hover:text-amber-900'
+                                      }`}
+                                    >
+                                      {entry.status === 'paid' ? (
+                                        <Check className="w-3.5 h-3.5" />
+                                      ) : (
+                                        <Clock className="w-3.5 h-3.5" />
+                                      )}
+                                      <span>
+                                        {group.isInc
+                                          ? entry.status === 'paid'
+                                            ? '已入账'
+                                            : '待入账'
+                                          : entry.status === 'paid'
+                                            ? '已扣款'
+                                            : '待扣款'}
+                                      </span>
+                                    </button>
+                                  </td>
+                                  <td
+                                    className={`py-2 px-4 text-right font-mono-num font-semibold whitespace-nowrap ${
+                                      group.isInc ? 'text-teal-700' : 'text-slate-900'
+                                    }`}
+                                  >
+                                    {group.isInc ? '+' : '-'}
+                                    {formatCurrency(entry.amount)}
+                                  </td>
+                                  <td className="py-2 px-4 text-right whitespace-nowrap">
+                                    <div className="inline-flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditEntry(entry)}
+                                        className="p-1 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100"
+                                        aria-label="编辑记录"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onDeleteEntry(entry.id)}
+                                        className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                                        aria-label="删除记录"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {group.totalCount > group.items.length && (
+                        <div className="px-3 sm:px-5 py-2 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                          <span>
+                            已展示前 {group.items.length} 笔（共 {group.totalCount} 笔）
+                          </span>
+                          <button
+                            type="button"
+                            onClick={onNavigateReports}
+                            className="text-teal-700 font-medium hover:underline"
+                          >
+                            查看全部明细 →
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </section>
