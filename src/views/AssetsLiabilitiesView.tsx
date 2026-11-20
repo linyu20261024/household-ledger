@@ -43,6 +43,8 @@ interface AssetsLiabilitiesViewProps {
   lastCopyUndo: CopyUndoState | null;
   onCopyFromAdjacentMonth: (monthKey: string, sourceMonthKey?: string) => number;
   onUndoCopyAssets: () => number;
+  onConfirmAccount: (id: string) => void;
+  onConfirmAllForMonth: () => number;
   onOpenAddAccount: (direction: AccountDirection) => void;
   onEditAccount: (item: AssetAccountItem) => void;
   onQuickUpdateAmount: (id: string, newAmount: number) => void;
@@ -62,6 +64,8 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
   lastCopyUndo,
   onCopyFromAdjacentMonth,
   onUndoCopyAssets,
+  onConfirmAccount,
+  onConfirmAllForMonth,
   onOpenAddAccount,
   onEditAccount,
   onQuickUpdateAmount,
@@ -283,6 +287,18 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
     );
   };
 
+  const pendingConfirmCount = useMemo(
+    () => monthItems.filter((a) => a.needsConfirm).length,
+    [monthItems]
+  );
+
+  const handleConfirmAll = () => {
+    const confirmed = onConfirmAllForMonth();
+    if (confirmed > 0) {
+      setFeedback(`已确认 ${selectedMonth} 的 ${confirmed} 项继承账户，颜色已恢复正常。`);
+    }
+  };
+
   const copyActionLabel = copySourceMonth
     ? copySourceMonth > selectedMonth
       ? `继承 ${copySourceMonth} 账户与额度`
@@ -377,13 +393,31 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
         </div>
       </section>
 
-      {(feedback || remainingUndoCount > 0) && (
-        <div className="bg-teal-50 border border-teal-200 text-teal-900 text-xs px-3 sm:px-4 py-2 rounded-xl flex flex-wrap items-center justify-between gap-2 no-print">
+      {(feedback || remainingUndoCount > 0 || pendingConfirmCount > 0) && (
+        <div
+          className={`text-xs px-3 sm:px-4 py-2 rounded-xl flex flex-wrap items-center justify-between gap-2 no-print border ${
+            pendingConfirmCount > 0
+              ? 'bg-amber-50 border-amber-200 text-amber-950'
+              : 'bg-teal-50 border-teal-200 text-teal-900'
+          }`}
+        >
           <span className="flex-1 min-w-[200px]">
-            {feedback ||
-              `当前「${selectedMonth}」包含从 ${lastCopyUndo?.sourceMonth} 沿用的 ${remainingUndoCount} 个账户条目，如需取消可一键撤销。`}
+            {pendingConfirmCount > 0
+              ? `当前「${selectedMonth}」有 ${pendingConfirmCount} 项继承账户为黄色待核对状态（修改金额或点击「确认」后恢复正常颜色）。`
+              : feedback ||
+                `当前「${selectedMonth}」包含从 ${lastCopyUndo?.sourceMonth} 沿用的 ${remainingUndoCount} 个账户条目，如需取消可一键撤销。`}
           </span>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            {pendingConfirmCount > 0 && (
+              <button
+                type="button"
+                onClick={handleConfirmAll}
+                className="inline-flex items-center gap-1 min-h-[32px] px-2.5 py-1 text-xs font-semibold text-white bg-amber-700 hover:bg-amber-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>全部确认 ({pendingConfirmCount})</span>
+              </button>
+            )}
             {remainingUndoCount > 0 && (
               <button
                 type="button"
@@ -398,7 +432,11 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
               <button
                 type="button"
                 onClick={() => setFeedback(null)}
-                className="min-w-[32px] min-h-[32px] inline-flex items-center justify-center text-teal-700 hover:text-teal-900"
+                className={`min-w-[32px] min-h-[32px] inline-flex items-center justify-center ${
+                  pendingConfirmCount > 0
+                    ? 'text-amber-800 hover:text-amber-950'
+                    : 'text-teal-700 hover:text-teal-900'
+                }`}
                 aria-label="关闭提示"
               >
                 <X className="w-4 h-4" />
@@ -786,13 +824,27 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                   : 0;
                               const isEditingInline = inlineEditId === item.id;
 
+                              const isPendingConfirm = Boolean(item.needsConfirm);
+
                               return (
-                                <div key={item.id} className="px-3 py-2 space-y-1">
+                                <div
+                                  key={item.id}
+                                  className={`px-3 py-2 space-y-1 transition-colors ${
+                                    isPendingConfirm
+                                      ? 'bg-amber-50/90 border-l-2 border-l-amber-400'
+                                      : ''
+                                  }`}
+                                >
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                       <span className="text-[13px] font-semibold text-slate-900 truncate">
                                         {item.name}
                                       </span>
+                                      {isPendingConfirm && (
+                                        <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded shrink-0">
+                                          待确认
+                                        </span>
+                                      )}
                                     </div>
 
                                     <div className="shrink-0">
@@ -825,8 +877,10 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => startInlineEdit(item)}
-                                          className="px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold text-slate-900 whitespace-nowrap"
-                                          title="点击快捷修改"
+                                          className={`px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold whitespace-nowrap ${
+                                            isPendingConfirm ? 'text-amber-800' : 'text-slate-900'
+                                          }`}
+                                          title="点击快捷修改并确认"
                                         >
                                           {formatCurrency(item.amount)}
                                         </button>
@@ -850,6 +904,17 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                     </div>
 
                                     <div className="flex items-center gap-1 shrink-0 no-print">
+                                      {isPendingConfirm && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onConfirmAccount(item.id)}
+                                          className="px-1.5 h-7 inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-md"
+                                          aria-label="确认余额无误"
+                                        >
+                                          <Check className="w-3 h-3" />
+                                          <span>确认</span>
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => onEditAccount(item)}
@@ -927,13 +992,26 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                     : 0;
                                 const isEditingInline = inlineEditId === item.id;
 
+                                const isPendingConfirm = Boolean(item.needsConfirm);
+
                                 return (
                                   <tr
                                     key={item.id}
-                                    className="hover:bg-slate-50/80 transition-colors"
+                                    className={`transition-colors ${
+                                      isPendingConfirm
+                                        ? 'bg-amber-50/85 hover:bg-amber-100/60'
+                                        : 'hover:bg-slate-50/80'
+                                    }`}
                                   >
                                     <td className="py-2.5 pl-9 pr-4">
-                                      <div className="font-medium text-slate-900">{item.name}</div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-slate-900">{item.name}</span>
+                                        {isPendingConfirm && (
+                                          <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
+                                            待确认
+                                          </span>
+                                        )}
+                                      </div>
                                       {item.notes && (
                                         <div className="text-[11px] text-slate-400 mt-0.5">
                                           {item.notes}
@@ -976,8 +1054,12 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => startInlineEdit(item)}
-                                          title="点击快捷修改月底余额"
-                                          className="font-mono-num font-semibold text-slate-900 hover:text-teal-700 hover:underline cursor-pointer"
+                                          title="点击快捷修改月底余额并确认"
+                                          className={`font-mono-num font-semibold hover:underline cursor-pointer ${
+                                            isPendingConfirm
+                                              ? 'text-amber-800'
+                                              : 'text-slate-900 hover:text-teal-700'
+                                          }`}
                                         >
                                           {formatCurrency(item.amount)}
                                         </button>
@@ -985,6 +1067,15 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                     </td>
                                     <td className="py-2.5 px-5 text-right whitespace-nowrap no-print">
                                       <div className="inline-flex items-center gap-1">
+                                        {isPendingConfirm && (
+                                          <button
+                                            type="button"
+                                            onClick={() => onConfirmAccount(item.id)}
+                                            className="px-2 py-1 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded transition-colors cursor-pointer"
+                                          >
+                                            确认
+                                          </button>
+                                        )}
                                         <button
                                           type="button"
                                           onClick={() => onEditAccount(item)}
@@ -1133,13 +1224,27 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                 ? (item.amount / item.creditLimit) * 100
                                 : null;
 
+                            const isPendingConfirm = Boolean(item.needsConfirm);
+
                             return (
-                              <div key={item.id} className="px-3 py-2 space-y-1">
+                              <div
+                                key={item.id}
+                                className={`px-3 py-2 space-y-1 transition-colors ${
+                                  isPendingConfirm
+                                    ? 'bg-amber-50/90 border-l-2 border-l-amber-400'
+                                    : ''
+                                }`}
+                              >
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-1.5 min-w-0">
                                     <span className="text-[13px] font-semibold text-slate-900 truncate">
                                       {item.name}
                                     </span>
+                                    {isPendingConfirm && (
+                                      <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded shrink-0">
+                                        待确认
+                                      </span>
+                                    )}
                                   </div>
 
                                   <div className="shrink-0">
@@ -1187,9 +1292,13 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                         type="button"
                                         onClick={() => startInlineEdit(item)}
                                         className={`px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold whitespace-nowrap ${
-                                          isNegativeCredit ? 'text-teal-700' : 'text-red-600'
+                                          isPendingConfirm
+                                            ? 'text-amber-800'
+                                            : isNegativeCredit
+                                              ? 'text-teal-700'
+                                              : 'text-red-600'
                                         }`}
-                                        title="点击快捷修改"
+                                        title="点击快捷修改并确认"
                                       >
                                         {formatCurrency(item.amount)}
                                         {isNegativeCredit && (
@@ -1232,6 +1341,17 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                   </div>
 
                                   <div className="flex items-center gap-1 shrink-0 no-print">
+                                    {isPendingConfirm && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onConfirmAccount(item.id)}
+                                        className="px-1.5 h-7 inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-md"
+                                        aria-label="确认借贷金额无误"
+                                      >
+                                        <Check className="w-3 h-3" />
+                                        <span>确认</span>
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => onEditAccount(item)}
@@ -1331,13 +1451,26 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                   ? (item.amount / item.creditLimit) * 100
                                   : null;
 
+                              const isPendingConfirm = Boolean(item.needsConfirm);
+
                               return (
                                 <tr
                                   key={item.id}
-                                  className="hover:bg-slate-50/80 transition-colors"
+                                  className={`transition-colors ${
+                                    isPendingConfirm
+                                      ? 'bg-amber-50/85 hover:bg-amber-100/60'
+                                      : 'hover:bg-slate-50/80'
+                                  }`}
                                 >
                                   <td className="py-2.5 pl-9 pr-4">
-                                    <div className="font-medium text-slate-900">{item.name}</div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-slate-900">{item.name}</span>
+                                      {isPendingConfirm && (
+                                        <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
+                                          待确认
+                                        </span>
+                                      )}
+                                    </div>
                                     {item.notes && (
                                       <div className="text-[11px] text-slate-400 mt-0.5">
                                         {item.notes}
@@ -1418,9 +1551,13 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => startInlineEdit(item)}
-                                        title="点击快捷修改月底金额"
+                                        title="点击快捷修改月底金额并确认"
                                         className={`font-mono-num font-semibold hover:underline cursor-pointer ${
-                                          isNegativeCredit ? 'text-teal-700' : 'text-red-600'
+                                          isPendingConfirm
+                                            ? 'text-amber-800'
+                                            : isNegativeCredit
+                                              ? 'text-teal-700'
+                                              : 'text-red-600'
                                         }`}
                                       >
                                         {formatCurrency(item.amount)}
@@ -1434,6 +1571,15 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                   </td>
                                   <td className="py-2.5 px-5 text-right whitespace-nowrap no-print">
                                     <div className="inline-flex items-center gap-1">
+                                      {isPendingConfirm && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onConfirmAccount(item.id)}
+                                          className="px-2 py-1 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded transition-colors cursor-pointer"
+                                        >
+                                          确认
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => onEditAccount(item)}
@@ -1622,13 +1768,27 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                   : 0;
                               const isEditingInline = inlineEditId === item.id;
 
+                              const isPendingConfirm = Boolean(item.needsConfirm);
+
                               return (
-                                <div key={item.id} className="px-3 py-2 space-y-1">
+                                <div
+                                  key={item.id}
+                                  className={`px-3 py-2 space-y-1 transition-colors ${
+                                    isPendingConfirm
+                                      ? 'bg-amber-50/90 border-l-2 border-l-amber-400'
+                                      : ''
+                                  }`}
+                                >
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                       <span className="text-[13px] font-semibold text-slate-900 truncate">
                                         {item.name}
                                       </span>
+                                      {isPendingConfirm && (
+                                        <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded shrink-0">
+                                          待确认
+                                        </span>
+                                      )}
                                     </div>
 
                                     <div className="shrink-0">
@@ -1662,7 +1822,7 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                           type="button"
                                           onClick={() => startInlineEdit(item)}
                                           className="px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold text-amber-800 whitespace-nowrap"
-                                          title="点击快捷更新剩余本金"
+                                          title="点击快捷更新剩余本金并确认"
                                         >
                                           {formatCurrency(item.amount)}
                                         </button>
@@ -1686,6 +1846,17 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                     </div>
 
                                     <div className="flex items-center gap-1 shrink-0 no-print">
+                                      {isPendingConfirm && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onConfirmAccount(item.id)}
+                                          className="px-1.5 h-7 inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-md"
+                                          aria-label="确认房贷本金无误"
+                                        >
+                                          <Check className="w-3 h-3" />
+                                          <span>确认</span>
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => onEditAccount(item)}
@@ -1763,13 +1934,26 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                     : 0;
                                 const isEditingInline = inlineEditId === item.id;
 
+                                const isPendingConfirm = Boolean(item.needsConfirm);
+
                                 return (
                                   <tr
                                     key={item.id}
-                                    className="hover:bg-slate-50/80 transition-colors"
+                                    className={`transition-colors ${
+                                      isPendingConfirm
+                                        ? 'bg-amber-50/85 hover:bg-amber-100/60'
+                                        : 'hover:bg-slate-50/80'
+                                    }`}
                                   >
                                     <td className="py-2.5 pl-9 pr-4">
-                                      <div className="font-medium text-slate-900">{item.name}</div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-slate-900">{item.name}</span>
+                                        {isPendingConfirm && (
+                                          <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
+                                            待确认
+                                          </span>
+                                        )}
+                                      </div>
                                       {item.notes && (
                                         <div className="text-[11px] text-slate-400 mt-0.5">
                                           {item.notes}
@@ -1812,7 +1996,7 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => startInlineEdit(item)}
-                                          title="点击快捷更新剩余本金"
+                                          title="点击快捷更新剩余本金并确认"
                                           className="font-mono-num font-semibold text-amber-800 hover:underline cursor-pointer"
                                         >
                                           {formatCurrency(item.amount)}
@@ -1821,6 +2005,15 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                                     </td>
                                     <td className="py-2.5 px-5 text-right whitespace-nowrap no-print">
                                       <div className="inline-flex items-center gap-1">
+                                        {isPendingConfirm && (
+                                          <button
+                                            type="button"
+                                            onClick={() => onConfirmAccount(item.id)}
+                                            className="px-2 py-1 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded transition-colors cursor-pointer"
+                                          >
+                                            确认
+                                          </button>
+                                        )}
                                         <button
                                           type="button"
                                           onClick={() => onEditAccount(item)}

@@ -38,6 +38,7 @@ interface FixedTemplatesViewProps {
   ) => boolean;
   onRemoveFromMonth: (templateId: string, monthKey: string) => number;
   onQuickUpdateEntryAmount: (id: string, newAmount: number) => void;
+  onConfirmEntries: (ids: string[]) => number;
   onUndoBatchGenerate: () => number;
   onExportExcel: () => void;
   onOpenExcelImport: () => void;
@@ -60,6 +61,7 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
   onGenerateSingleForMonth,
   onRemoveFromMonth,
   onQuickUpdateEntryAmount,
+  onConfirmEntries,
   onUndoBatchGenerate,
   onExportExcel,
   onOpenExcelImport,
@@ -106,6 +108,14 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
     }
     return map;
   }, [entries, targetMonth]);
+
+  const targetMonthPendingEntries = useMemo(
+    () =>
+      entries.filter(
+        (e) => e.templateId && e.date.startsWith(targetMonth) && Boolean(e.needsConfirm)
+      ),
+    [entries, targetMonth]
+  );
 
   const skippedSetForTarget = useMemo(() => {
     const prefix = `${targetMonth}::`;
@@ -331,19 +341,42 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
             </div>
           </div>
 
-          {lastBatchUndo && lastBatchUndo.createdIds.length > 0 && (
-            <button
-              type="button"
-              onClick={handleUndoBatch}
-              className="min-h-[34px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-              <span>
-                撤销「{lastBatchUndo.label}」（{lastBatchUndo.createdIds.length} 笔）
-              </span>
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {targetMonthPendingEntries.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const cnt = onConfirmEntries(targetMonthPendingEntries.map((e) => e.id));
+                  if (cnt > 0) {
+                    setFeedback(`已确认 ${targetMonth} 的 ${cnt} 笔模板生成开支，颜色已恢复正常。`);
+                  }
+                }}
+                className="min-h-[34px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-700 hover:bg-amber-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5 shrink-0" />
+                <span>全部确认本月 ({targetMonthPendingEntries.length})</span>
+              </button>
+            )}
+            {lastBatchUndo && lastBatchUndo.createdIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleUndoBatch}
+                className="min-h-[34px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  撤销「{lastBatchUndo.label}」（{lastBatchUndo.createdIds.length} 笔）
+                </span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {targetMonthPendingEntries.length > 0 && !feedback && (
+          <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg">
+            {targetMonth} 有 <strong>{targetMonthPendingEntries.length}</strong> 笔模板生成的开支处于黄色待确认状态（修改金额或点击「确认」后恢复正常颜色）。
+          </div>
+        )}
 
         {feedback && (
           <div className="text-xs font-medium text-teal-800 bg-teal-50 px-3 py-2 rounded-lg flex items-center justify-between gap-2">
@@ -472,13 +505,17 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
                 const isSkipped = !isSynced && skippedSetForTarget.has(tpl.id);
                 const primaryEntry = monthEntries[0];
                 const monthTotal = monthEntries.reduce((acc, e) => acc + e.amount, 0);
+                const unconfirmedIds = monthEntries.filter((e) => e.needsConfirm).map((e) => e.id);
+                const hasUnconfirmed = unconfirmedIds.length > 0;
                 const isAddingHere = pendingAddTplId === tpl.id;
                 const isEditingHere = primaryEntry && editingEntryId === primaryEntry.id;
 
                 return (
                   <div
                     key={tpl.id}
-                    className={`px-3 py-2.5 space-y-1.5 ${!tpl.active ? 'opacity-65' : ''}`}
+                    className={`px-3 py-2.5 space-y-1.5 transition-colors ${
+                      hasUnconfirmed ? 'bg-amber-50/85 border-l-2 border-l-amber-400' : ''
+                    } ${!tpl.active ? 'opacity-65' : ''}`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -591,23 +628,41 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
                             <button
                               type="button"
                               onClick={() => startInlineAmountEdit(primaryEntry)}
-                              className="text-[11px] font-medium text-teal-700 inline-flex items-center gap-1 hover:underline"
+                              className={`text-[11px] font-medium inline-flex items-center gap-1 hover:underline ${
+                                hasUnconfirmed
+                                  ? 'text-amber-900 bg-amber-100/90 border border-amber-200 px-1.5 py-0.5 rounded'
+                                  : 'text-teal-700'
+                              }`}
                             >
                               <span>
-                                {targetMonthLabel}已记 {formatCurrency(monthTotal)}
+                                {hasUnconfirmed
+                                  ? `${targetMonthLabel}待确认 ${formatCurrency(monthTotal)}`
+                                  : `${targetMonthLabel}已记 ${formatCurrency(monthTotal)}`}
                               </span>
                               <Pencil className="w-2.5 h-2.5 opacity-70" />
                             </button>
                           )}
 
                           {!isEditingHere && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveMonth(tpl)}
-                              className="px-2 py-0.5 text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md whitespace-nowrap"
-                            >
-                              移除{targetMonthLabel}
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              {hasUnconfirmed && (
+                                <button
+                                  type="button"
+                                  onClick={() => onConfirmEntries(unconfirmedIds)}
+                                  className="px-2 py-0.5 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-md whitespace-nowrap inline-flex items-center gap-0.5"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>确认</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveMonth(tpl)}
+                                className="px-2 py-0.5 text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md whitespace-nowrap"
+                              >
+                                移除{targetMonthLabel}
+                              </button>
+                            </div>
                           )}
                         </>
                       ) : isAddingHere ? (
@@ -702,15 +757,21 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
                     const isSkipped = !isSynced && skippedSetForTarget.has(tpl.id);
                     const primaryEntry = monthEntries[0];
                     const monthTotal = monthEntries.reduce((acc, e) => acc + e.amount, 0);
+                    const unconfirmedIds = monthEntries
+                      .filter((e) => e.needsConfirm)
+                      .map((e) => e.id);
+                    const hasUnconfirmed = unconfirmedIds.length > 0;
                     const isAddingHere = pendingAddTplId === tpl.id;
                     const isEditingHere = primaryEntry && editingEntryId === primaryEntry.id;
 
                     return (
                       <tr
                         key={tpl.id}
-                        className={`hover:bg-slate-50/70 transition-colors ${
-                          !tpl.active ? 'opacity-65' : ''
-                        }`}
+                        className={`transition-colors ${
+                          hasUnconfirmed
+                            ? 'bg-amber-50/80 hover:bg-amber-100/50'
+                            : 'hover:bg-slate-50/70'
+                        } ${!tpl.active ? 'opacity-65' : ''}`}
                       >
                         <td className="py-3 px-5 whitespace-nowrap">
                           <div className="font-mono-num text-slate-700">
@@ -777,16 +838,33 @@ export const FixedTemplatesView: React.FC<FixedTemplatesViewProps> = ({
                                 </button>
                               </div>
                             ) : (
-                              <div className="inline-flex items-center gap-2">
+                              <div className="inline-flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => startInlineAmountEdit(primaryEntry)}
-                                  className="text-teal-700 font-medium hover:underline inline-flex items-center gap-1"
-                                  title="点击修改本月实付金额"
+                                  className={`font-medium hover:underline inline-flex items-center gap-1 ${
+                                    hasUnconfirmed
+                                      ? 'text-amber-900 bg-amber-100/90 border border-amber-200 px-1.5 py-0.5 rounded'
+                                      : 'text-teal-700'
+                                  }`}
+                                  title="点击修改本月实付金额并确认"
                                 >
-                                  <span>已记 {formatCurrency(monthTotal)}</span>
+                                  <span>
+                                    {hasUnconfirmed
+                                      ? `待确认 ${formatCurrency(monthTotal)}`
+                                      : `已记 ${formatCurrency(monthTotal)}`}
+                                  </span>
                                   <Pencil className="w-3 h-3 opacity-60" />
                                 </button>
+                                {hasUnconfirmed && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onConfirmEntries(unconfirmedIds)}
+                                    className="px-2 py-0.5 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded transition-colors cursor-pointer"
+                                  >
+                                    确认
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveMonth(tpl)}

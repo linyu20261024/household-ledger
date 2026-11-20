@@ -88,6 +88,7 @@ function loadStoredEntries(): LedgerEntry[] {
       member: typeof item.member === 'string' && item.member ? item.member : '先生',
       status: item.status === 'pending' ? ('pending' as const) : ('paid' as const),
       templateId: typeof item.templateId === 'string' ? item.templateId : undefined,
+      needsConfirm: item.needsConfirm === true ? true : undefined,
       notes: typeof item.notes === 'string' ? item.notes : undefined,
       createdAt:
         typeof item.createdAt === 'string' && item.createdAt
@@ -175,6 +176,7 @@ function loadStoredAssets(): AssetAccountItem[] {
         amount: Number.isFinite(Number(item.amount)) ? Number(item.amount) : 0,
         creditLimit: Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : undefined,
         member: typeof item.member === 'string' && item.member ? item.member : '先生',
+        needsConfirm: item.needsConfirm === true ? true : undefined,
         notes: typeof item.notes === 'string' ? item.notes : undefined,
         updatedAt:
           typeof item.updatedAt === 'string' && item.updatedAt
@@ -412,7 +414,9 @@ export function App() {
   ) => {
     if (editingEntry) {
       setEntries((prev) =>
-        prev.map((e) => (e.id === editingEntry.id ? { ...e, ...data } : e))
+        prev.map((e) =>
+          e.id === editingEntry.id ? { ...e, ...data, needsConfirm: undefined } : e
+        )
       );
       setEditingEntry(null);
       return;
@@ -446,9 +450,15 @@ export function App() {
 
   const handleToggleEntryStatus = (id: string) => {
     setEntries((prev) =>
-      prev.map((e) =>
-        e.id === id ? { ...e, status: e.status === 'paid' ? 'pending' : 'paid' } : e
-      )
+      prev.map((e) => {
+        if (e.id !== id) return e;
+        const nextStatus = e.status === 'paid' ? 'pending' : 'paid';
+        return {
+          ...e,
+          status: nextStatus,
+          needsConfirm: nextStatus === 'paid' ? undefined : e.needsConfirm,
+        };
+      })
     );
   };
 
@@ -471,8 +481,32 @@ export function App() {
 
   const handleQuickUpdateEntryAmount = (id: string, newAmount: number) => {
     setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, amount: newAmount } : e))
+      prev.map((e) =>
+        e.id === id ? { ...e, amount: newAmount, needsConfirm: undefined } : e
+      )
     );
+  };
+
+  const handleConfirmEntry = (id: string) => {
+    setEntries((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, needsConfirm: undefined } : e))
+    );
+  };
+
+  const handleConfirmEntriesByIds = (ids: string[]): number => {
+    if (ids.length === 0) return 0;
+    const idSet = new Set(ids);
+    let confirmed = 0;
+    setEntries((prev) =>
+      prev.map((e) => {
+        if (idSet.has(e.id) && e.needsConfirm) {
+          confirmed += 1;
+          return { ...e, needsConfirm: undefined };
+        }
+        return e;
+      })
+    );
+    return confirmed;
   };
 
   const handleSaveTemplate = (data: Omit<FixedExpenseTemplate, 'id'>) => {
@@ -522,6 +556,7 @@ export function App() {
         member: tpl.member,
         status: monthKey < currentMonthKey ? 'paid' : 'pending',
         templateId: tpl.id,
+        needsConfirm: true,
         notes: tpl.notes,
         createdAt: new Date().toISOString(),
       });
@@ -562,6 +597,7 @@ export function App() {
           member: tpl.member,
           status: monthKey < currentMonthKey ? 'paid' : 'pending',
           templateId: tpl.id,
+          needsConfirm: true,
           notes: tpl.notes,
           createdAt: new Date().toISOString(),
         });
@@ -606,6 +642,7 @@ export function App() {
       member: tpl.member,
       status: monthKey < currentMonthKey ? 'paid' : 'pending',
       templateId: tpl.id,
+      needsConfirm: overrideAmount === undefined ? true : undefined,
       notes: tpl.notes,
       createdAt: new Date().toISOString(),
     };
@@ -702,7 +739,7 @@ export function App() {
       setAssetAccounts((prev) => {
         const updated = prev.map((a) =>
           a.id === editingAsset.id
-            ? { ...a, ...payload, updatedAt: new Date().toISOString() }
+            ? { ...a, ...payload, needsConfirm: undefined, updatedAt: new Date().toISOString() }
             : a
         );
         return propagateLimit(updated, editingAsset.id);
@@ -722,9 +759,36 @@ export function App() {
   const handleQuickUpdateAssetAmount = (id: string, newAmount: number) => {
     setAssetAccounts((prev) =>
       prev.map((a) =>
-        a.id === id ? { ...a, amount: newAmount, updatedAt: new Date().toISOString() } : a
+        a.id === id
+          ? { ...a, amount: newAmount, needsConfirm: undefined, updatedAt: new Date().toISOString() }
+          : a
       )
     );
+  };
+
+  const handleConfirmAssetAccount = (id: string) => {
+    setAssetAccounts((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, needsConfirm: undefined, updatedAt: new Date().toISOString() }
+          : a
+      )
+    );
+  };
+
+  const handleConfirmAllAssetsForMonth = (monthKey: string): number => {
+    let count = 0;
+    const now = new Date().toISOString();
+    setAssetAccounts((prev) =>
+      prev.map((a) => {
+        if (a.monthKey === monthKey && a.needsConfirm) {
+          count += 1;
+          return { ...a, needsConfirm: undefined, updatedAt: now };
+        }
+        return a;
+      })
+    );
+    return count;
   };
 
   const handleDeleteAssetAccount = (id: string) => {
@@ -769,6 +833,7 @@ export function App() {
         id: createId('asset'),
         monthKey,
         creditLimit,
+        needsConfirm: true,
         updatedAt: new Date().toISOString(),
       });
     }
@@ -916,6 +981,8 @@ export function App() {
               missingTemplatesForMonth={missingTemplatesForMonth}
               onGenerateMonthTemplates={generateTemplatesForMonth}
               onToggleEntryStatus={handleToggleEntryStatus}
+              onConfirmEntry={handleConfirmEntry}
+              onConfirmEntries={handleConfirmEntriesByIds}
               onEditEntry={(entry) => {
                 setEditingEntry(entry);
                 setEntryModalOpen(true);
@@ -958,6 +1025,7 @@ export function App() {
               onGenerateSingleForMonth={handleGenerateSingleTemplateForMonth}
               onRemoveFromMonth={handleRemoveTemplateFromMonth}
               onQuickUpdateEntryAmount={handleQuickUpdateEntryAmount}
+              onConfirmEntries={handleConfirmEntriesByIds}
               onUndoBatchGenerate={handleUndoTemplateGenerate}
               onExportExcel={() => handleExportWorkbook()}
               onOpenExcelImport={() => setExcelImportOpen(true)}
@@ -971,6 +1039,8 @@ export function App() {
               scopedEntries={scopedEntries}
               tags={tags}
               onToggleStatus={handleToggleEntryStatus}
+              onConfirmEntry={handleConfirmEntry}
+              onConfirmEntries={handleConfirmEntriesByIds}
               onEditEntry={(entry) => {
                 setEditingEntry(entry);
                 setEntryModalOpen(true);
@@ -996,6 +1066,8 @@ export function App() {
               lastCopyUndo={lastCopyUndo}
               onCopyFromAdjacentMonth={handleCopyAssetsFromAdjacentMonth}
               onUndoCopyAssets={handleUndoCopyAssets}
+              onConfirmAccount={handleConfirmAssetAccount}
+              onConfirmAllForMonth={() => handleConfirmAllAssetsForMonth(selectedMonth)}
               onOpenAddAccount={(direction) => {
                 setEditingAsset(null);
                 setDefaultAssetDirection(direction);

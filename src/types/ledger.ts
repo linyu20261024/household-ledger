@@ -30,6 +30,7 @@ export interface LedgerEntry {
   member: string;
   status: PaymentStatus;
   templateId?: string;
+  needsConfirm?: boolean;
   notes?: string;
   createdAt: string;
 }
@@ -115,6 +116,7 @@ export interface AssetAccountItem {
   amount: number; // 资产期末余额 或 负债待还/信用卡已用额度 或 房贷剩余本金
   creditLimit?: number; // 仅信用卡适用：授信总额度
   member: string;
+  needsConfirm?: boolean;
   notes?: string;
   updatedAt: string;
 }

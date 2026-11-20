@@ -24,6 +24,8 @@ interface OverviewViewProps {
   missingTemplatesForMonth: FixedExpenseTemplate[];
   onGenerateMonthTemplates: (monthKey: string) => void;
   onToggleEntryStatus: (entryId: string) => void;
+  onConfirmEntry: (entryId: string) => void;
+  onConfirmEntries: (entryIds: string[]) => number;
   onEditEntry: (entry: LedgerEntry) => void;
   onDeleteEntry: (entryId: string) => void;
   onOpenAddEntry: () => void;
@@ -53,6 +55,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   missingTemplatesForMonth,
   onGenerateMonthTemplates,
   onToggleEntryStatus,
+  onConfirmEntry,
+  onConfirmEntries,
   onEditEntry,
   onDeleteEntry,
   onOpenAddEntry,
@@ -68,6 +72,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const pendingFixed = scopedEntries
     .filter((e) => e.type === 'fixed_expense' && e.status === 'pending')
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  const unconfirmedEntryIds = useMemo(
+    () => scopedEntries.filter((e) => e.needsConfirm).map((e) => e.id),
+    [scopedEntries]
+  );
 
   const {
     incomeList,
@@ -304,6 +313,25 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       </section>
 
+      {/* Unconfirmed Template Entries Alert */}
+      {unconfirmedEntryIds.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-950 no-print">
+          <span>
+            {report.periodLabel} 有{' '}
+            <strong className="font-mono-num">{unconfirmedEntryIds.length}</strong>{' '}
+            笔固定模板生成的开支处于黄色待确认状态（修改金额、点「确认」或「标记已扣」后恢复正常颜色）。
+          </span>
+          <button
+            type="button"
+            onClick={() => onConfirmEntries(unconfirmedEntryIds)}
+            className="inline-flex items-center gap-1 min-h-[30px] px-3 py-1 text-xs font-semibold text-white bg-amber-700 hover:bg-amber-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>全部确认 ({unconfirmedEntryIds.length})</span>
+          </button>
+        </div>
+      )}
+
       {/* Bottom Split: Pending Fixed Items + Recent Ledger */}
       <section className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-6">
         <div className="xl:col-span-5 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
@@ -334,14 +362,26 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <div className="divide-y divide-slate-100">
               {pendingFixed.map((entry) => {
                 const tag = tagMap.get(entry.categoryId);
+                const isPendingConfirm = Boolean(entry.needsConfirm);
                 return (
                   <div
                     key={entry.id}
-                    className="px-3 sm:px-5 py-2 sm:py-3 flex items-center justify-between gap-2.5 hover:bg-slate-50/80 transition-colors"
+                    className={`px-3 sm:px-5 py-2 sm:py-3 flex items-center justify-between gap-2.5 transition-colors ${
+                      isPendingConfirm
+                        ? 'bg-amber-50/90 border-l-2 border-l-amber-400 hover:bg-amber-100/60'
+                        : 'hover:bg-slate-50/80'
+                    }`}
                   >
                     <div className="min-w-0">
-                      <div className="text-[13px] sm:text-sm font-medium text-slate-900 truncate">
-                        {entry.title}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[13px] sm:text-sm font-medium text-slate-900 truncate">
+                          {entry.title}
+                        </span>
+                        {isPendingConfirm && (
+                          <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded shrink-0">
+                            待确认
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] sm:text-xs text-slate-500 mt-0.5">
                         <span className="font-mono-num">{entry.date}</span>
@@ -361,11 +401,23 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                     <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                       <span
                         className={`font-mono-num text-[13px] sm:text-sm font-semibold ${
-                          entry.amount === 0 ? 'text-amber-700' : 'text-slate-900'
+                          isPendingConfirm || entry.amount === 0
+                            ? 'text-amber-800'
+                            : 'text-slate-900'
                         }`}
                       >
                         {formatCurrency(entry.amount)}
                       </span>
+                      {isPendingConfirm && (
+                        <button
+                          type="button"
+                          onClick={() => onConfirmEntry(entry.id)}
+                          className="min-h-[28px] px-2 py-1 text-[11px] sm:text-xs font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-md transition-colors whitespace-nowrap"
+                          title="确认金额无误并恢复正常颜色"
+                        >
+                          确认
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => onToggleEntryStatus(entry.id)}
@@ -530,8 +582,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                       <div className="md:hidden divide-y divide-slate-100">
                         {group.items.map((entry) => {
                           const tag = tagMap.get(entry.categoryId);
+                          const isPendingConfirm = Boolean(entry.needsConfirm);
                           return (
-                            <div key={entry.id} className="px-3 py-2 space-y-1">
+                            <div
+                              key={entry.id}
+                              className={`px-3 py-2 space-y-1 transition-colors ${
+                                isPendingConfirm
+                                  ? 'bg-amber-50/90 border-l-2 border-l-amber-400'
+                                  : ''
+                              }`}
+                            >
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <span
@@ -541,10 +601,19 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                                   <span className="text-[13px] font-medium text-slate-900 truncate">
                                     {entry.title}
                                   </span>
+                                  {isPendingConfirm && (
+                                    <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded shrink-0">
+                                      待确认
+                                    </span>
+                                  )}
                                 </div>
                                 <div
                                   className={`font-mono-num text-[13px] font-semibold whitespace-nowrap shrink-0 ${
-                                    group.isInc ? 'text-teal-700' : 'text-slate-900'
+                                    isPendingConfirm
+                                      ? 'text-amber-800'
+                                      : group.isInc
+                                        ? 'text-teal-700'
+                                        : 'text-slate-900'
                                   }`}
                                 >
                                   {group.isInc ? '+' : '-'}
@@ -562,6 +631,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                                 </div>
 
                                 <div className="flex items-center gap-1 shrink-0">
+                                  {isPendingConfirm && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onConfirmEntry(entry.id)}
+                                      className="px-1.5 py-0.5 inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                      <span>确认</span>
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => onToggleEntryStatus(entry.id)}
@@ -625,16 +704,28 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                           <tbody className="divide-y divide-slate-100 text-xs">
                             {group.items.map((entry) => {
                               const tag = tagMap.get(entry.categoryId);
+                              const isPendingConfirm = Boolean(entry.needsConfirm);
                               return (
                                 <tr
                                   key={entry.id}
-                                  className="hover:bg-slate-50/80 transition-colors h-10"
+                                  className={`transition-colors h-10 ${
+                                    isPendingConfirm
+                                      ? 'bg-amber-50/85 hover:bg-amber-100/60'
+                                      : 'hover:bg-slate-50/80'
+                                  }`}
                                 >
                                   <td className="py-2 px-4 font-mono-num text-slate-500 whitespace-nowrap">
                                     {entry.date}
                                   </td>
-                                  <td className="py-2 px-4 font-medium text-slate-900 max-w-[180px] truncate">
-                                    {entry.title}
+                                  <td className="py-2 px-4 font-medium text-slate-900 max-w-[210px]">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="truncate">{entry.title}</span>
+                                      {isPendingConfirm && (
+                                        <span className="text-[10px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
+                                          待确认
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="py-2 px-4 text-slate-600 whitespace-nowrap">
                                     <span className="inline-flex items-center gap-1.5">
@@ -673,7 +764,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                                   </td>
                                   <td
                                     className={`py-2 px-4 text-right font-mono-num font-semibold whitespace-nowrap ${
-                                      group.isInc ? 'text-teal-700' : 'text-slate-900'
+                                      isPendingConfirm
+                                        ? 'text-amber-800'
+                                        : group.isInc
+                                          ? 'text-teal-700'
+                                          : 'text-slate-900'
                                     }`}
                                   >
                                     {group.isInc ? '+' : '-'}
@@ -681,6 +776,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                                   </td>
                                   <td className="py-2 px-4 text-right whitespace-nowrap">
                                     <div className="inline-flex items-center gap-1">
+                                      {isPendingConfirm && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onConfirmEntry(entry.id)}
+                                          className="px-1.5 py-0.5 text-[11px] font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded transition-colors cursor-pointer"
+                                        >
+                                          确认
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => onEditEntry(entry)}
