@@ -231,7 +231,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-8">
-          <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-8 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+          <div
+            className={`${
+              assetSummary.mortgageTotal > 0 ? 'grid grid-cols-2' : 'grid grid-cols-3'
+            } gap-x-3 gap-y-2 sm:flex sm:items-center sm:gap-7 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100`}
+          >
             <div>
               <div className="text-[10px] sm:text-[11px] text-slate-500">货币资产</div>
               <div className="font-mono-num text-xs sm:text-sm font-bold text-teal-700 mt-0.5 truncate">
@@ -254,6 +258,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 {formatCurrency(assetSummary.netMonetaryAssets)}
               </div>
             </div>
+            {assetSummary.mortgageTotal > 0 && (
+              <div>
+                <div className="text-[10px] sm:text-[11px] text-slate-500">
+                  房贷本金总额
+                </div>
+                <div className="font-mono-num text-xs sm:text-sm font-bold text-amber-800 mt-0.5 truncate">
+                  {formatCurrency(assetSummary.mortgageTotal)}
+                </div>
+              </div>
+            )}
           </div>
 
           <button

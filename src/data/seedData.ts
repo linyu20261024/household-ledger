@@ -1,4 +1,5 @@
 import {
+  AccountDirection,
   AssetAccountItem,
   AssetCategory,
   CategoryTag,
@@ -23,7 +24,7 @@ export const DEFAULT_MEMBERS = ['先生', '太太', '父母', '共同账户'];
 
 export const ASSET_CATEGORY_META: {
   category: AssetCategory;
-  direction: 'asset' | 'liability';
+  direction: AccountDirection;
   color: string;
   description: string;
 }[] = [
@@ -37,6 +38,8 @@ export const ASSET_CATEGORY_META: {
   { category: '消费与信用借贷', direction: 'liability', color: '#EA580C', description: '银行消费贷、分期未还余额' },
   { category: '私人及亲友借贷', direction: 'liability', color: '#BE123C', description: '向亲友借入的待还欠款（我方欠款）' },
   { category: '其他借贷账务', direction: 'liability', color: '#64748B', description: '其他应付款项与负债' },
+  { category: '商业贷款本金', direction: 'mortgage', color: '#B45309', description: '银行个人住房商业贷款剩余本金' },
+  { category: '公积金贷款本金', direction: 'mortgage', color: '#0369A1', description: '住房公积金贷款剩余未还本金' },
 ];
 
 export const DEFAULT_TAGS: CategoryTag[] = [

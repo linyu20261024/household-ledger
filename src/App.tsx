@@ -146,7 +146,12 @@ function loadStoredAssets(): AssetAccountItem[] {
   return arr
     .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
     .map((item) => {
-      const direction: AccountDirection = item.direction === 'liability' ? 'liability' : 'asset';
+      const direction: AccountDirection =
+        item.direction === 'mortgage'
+          ? 'mortgage'
+          : item.direction === 'liability'
+            ? 'liability'
+            : 'asset';
       const rawLimit = Number(item.creditLimit);
       return {
         id: typeof item.id === 'string' && item.id ? item.id : createId('asset'),
@@ -157,9 +162,11 @@ function loadStoredAssets(): AssetAccountItem[] {
         direction,
         category: (typeof item.category === 'string' && item.category
           ? item.category
-          : direction === 'asset'
-            ? '储蓄卡余额'
-            : '信用卡支出额度') as AssetAccountItem['category'],
+          : direction === 'mortgage'
+            ? '商业贷款本金'
+            : direction === 'asset'
+              ? '储蓄卡余额'
+              : '信用卡支出额度') as AssetAccountItem['category'],
         name: typeof item.name === 'string' ? item.name : '未命名账户',
         institution:
           typeof item.institution === 'string' && item.institution
@@ -306,6 +313,18 @@ export function App() {
     () => computeAssetSnapshotSummary(assetAccounts, selectedMonth),
     [assetAccounts, selectedMonth]
   );
+
+  const monthlyMortgagePayment = useMemo(() => {
+    const tagMap = new Map(tags.map((t) => [t.id, t.name]));
+    return entries
+      .filter((e) => {
+        if (e.type !== 'fixed_expense' || !e.date.startsWith(selectedMonth)) return false;
+        if (/房租|租金/.test(e.title)) return false;
+        const tagName = tagMap.get(e.categoryId) || '';
+        return tagName.includes('房贷') || /房贷|按揭|商贷|公积金/.test(e.title);
+      })
+      .reduce((acc, e) => acc + e.amount, 0);
+  }, [entries, tags, selectedMonth]);
 
   const assetAnnualTrend = useMemo(
     () => computeAssetAnnualTrend(assetAccounts, selectedYear),
@@ -971,6 +990,7 @@ export function App() {
               monthItems={monthAssets}
               allAssetItems={assetAccounts}
               summary={assetSummary}
+              monthlyMortgagePayment={monthlyMortgagePayment}
               annualTrend={assetAnnualTrend}
               copySourceMonth={copySourceMonth}
               lastCopyUndo={lastCopyUndo}

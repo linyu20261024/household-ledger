@@ -47,6 +47,7 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
     : [...DEFAULT_MEMBERS, member];
 
   const isCreditCard = direction === 'liability' && category === '信用卡支出额度';
+  const isMortgage = direction === 'mortgage';
 
   const knownCards = useMemo(
     () => (isCreditCard ? getCreditCardProfiles(allAssetItems, monthKey, member) : []),
@@ -223,28 +224,39 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
           <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">项目大类</label>
-              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg border border-slate-200">
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-200">
                 <button
                   type="button"
                   onClick={() => setDirection('asset')}
-                  className={`min-h-[40px] py-2 text-xs font-medium rounded-md transition-colors ${
+                  className={`min-h-[40px] px-1.5 py-2 text-[11px] sm:text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
                     direction === 'asset'
                       ? 'bg-white text-teal-800 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  货币资产 / 借出应收款
+                  货币资产 / 应收
                 </button>
                 <button
                   type="button"
                   onClick={() => setDirection('liability')}
-                  className={`min-h-[40px] py-2 text-xs font-medium rounded-md transition-colors ${
+                  className={`min-h-[40px] px-1.5 py-2 text-[11px] sm:text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
                     direction === 'liability'
                       ? 'bg-white text-red-700 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  借贷与信用卡支出额度
+                  借贷 / 信用卡
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirection('mortgage')}
+                  className={`min-h-[40px] px-1.5 py-2 text-[11px] sm:text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                    direction === 'mortgage'
+                      ? 'bg-white text-amber-800 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  房贷本金
                 </button>
               </div>
             </div>
@@ -288,7 +300,12 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                 )}
                 {category === '私人及亲友借贷' && (
                   <p className="text-[11px] text-amber-700 mt-1">
-                    此处仅登记「向他人借入待还」的欠款；若是「借给别人的钱」，请切换上方为「货币资产 / 借出应收款 → 借出及应收款」。
+                    此处仅登记「向他人借入待还」的欠款；若是「借给别人的钱」，请切换上方为「货币资产 / 应收 → 借出及应收款」。
+                  </p>
+                )}
+                {isMortgage && (
+                  <p className="text-[11px] text-amber-800 mt-1">
+                    分别登记商业贷款与公积金贷款的剩余本金，系统将自动汇总「房贷本金总额」，且不混入日常净货币资产。
                   </p>
                 )}
               </div>
@@ -338,7 +355,7 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="asset-name" className="block text-xs font-medium text-slate-600 mb-1.5">
-                  账户 / 账务名称
+                  {isMortgage ? '房贷项目名称' : '账户 / 账务名称'}
                 </label>
                 <input
                   id="asset-name"
@@ -346,13 +363,17 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={
-                    category === '借出及应收款'
-                      ? '如：借给张三周转款、租房押金'
-                      : direction === 'asset'
-                        ? '如：招行储蓄卡、余额宝、华泰证券'
-                        : category === '私人及亲友借贷'
-                          ? '如：向亲友借款待还'
-                          : '如：招行信用卡账单、车贷分期余额'
+                    isMortgage
+                      ? category === '公积金贷款本金'
+                        ? '如：自住房公积金贷款'
+                        : '如：自住房商业贷款'
+                      : category === '借出及应收款'
+                        ? '如：借给张三周转款、租房押金'
+                        : direction === 'asset'
+                          ? '如：招行储蓄卡、余额宝、华泰证券'
+                          : category === '私人及亲友借贷'
+                            ? '如：向亲友借款待还'
+                            : '如：招行信用卡账单、车贷分期余额'
                   }
                   className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
                 />
@@ -360,11 +381,13 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
 
               <div>
                 <label htmlFor="asset-inst" className="block text-xs font-medium text-slate-600 mb-1.5">
-                  {category === '借出及应收款'
-                    ? '借款对象 / 对方姓名'
-                    : category === '私人及亲友借贷'
-                      ? '出借方 / 亲友姓名'
-                      : '所属银行 / 平台机构'}
+                  {isMortgage
+                    ? '贷款银行 / 公积金中心'
+                    : category === '借出及应收款'
+                      ? '借款对象 / 对方姓名'
+                      : category === '私人及亲友借贷'
+                        ? '出借方 / 亲友姓名'
+                        : '所属银行 / 平台机构'}
                 </label>
                 <input
                   id="asset-inst"
@@ -372,9 +395,13 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                   value={institution}
                   onChange={(e) => setInstitution(e.target.value)}
                   placeholder={
-                    category === '借出及应收款' || category === '私人及亲友借贷'
-                      ? '如：张三、亲戚、个人'
-                      : '如：招商银行、支付宝、华泰证券'
+                    isMortgage
+                      ? category === '公积金贷款本金'
+                        ? '如：市住房公积金中心'
+                        : '如：建设银行、工商银行'
+                      : category === '借出及应收款' || category === '私人及亲友借贷'
+                        ? '如：张三、亲戚、个人'
+                        : '如：招商银行、支付宝、华泰证券'
                   }
                   className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
                 />
@@ -384,13 +411,15 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="asset-amount" className="block text-xs font-medium text-slate-600 mb-1.5">
-                  {category === '借出及应收款'
-                    ? '待收回借出金额（元）'
-                    : direction === 'asset'
-                      ? '月底账户余额 / 市值（元）'
-                      : isCreditCard
-                        ? '信用卡已用待还额度（元）'
-                        : '期末借贷待还余额（元）'}
+                  {isMortgage
+                    ? '剩余未还本金（元）'
+                    : category === '借出及应收款'
+                      ? '待收回借出金额（元）'
+                      : direction === 'asset'
+                        ? '月底账户余额 / 市值（元）'
+                        : isCreditCard
+                          ? '信用卡已用待还额度（元）'
+                          : '期末借贷待还余额（元）'}
                 </label>
                 <div className="flex items-center gap-1.5">
                   <input
@@ -498,7 +527,11 @@ export const AssetAccountModal: React.FC<AssetAccountModalProps> = ({
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="如：活期/定存到期日、账单日、还款日等"
+                placeholder={
+                  isMortgage
+                    ? '如：年利率 3.1%、剩余 240 期、每月 10 日扣款'
+                    : '如：活期/定存到期日、账单日、还款日等'
+                }
                 className="w-full h-11 sm:h-10 px-3 text-base sm:text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-600"
               />
             </div>

@@ -30,6 +30,9 @@ function normalizeAssetCategory(
   if (VALID_ASSET_CATEGORIES.has(cleaned as AssetCategory)) {
     return cleaned as AssetCategory;
   }
+  if (cleaned.includes('公积金')) return '公积金贷款本金';
+  if (cleaned.includes('商贷') || cleaned.includes('商业贷款') || cleaned.includes('房贷'))
+    return '商业贷款本金';
   if (cleaned.includes('储蓄') || cleaned.includes('银行卡')) return '储蓄卡余额';
   if (cleaned.includes('货币基金') || cleaned.includes('余额宝') || cleaned.includes('零钱通'))
     return '货币基金';
@@ -42,6 +45,7 @@ function normalizeAssetCategory(
   if (cleaned.includes('亲友') || cleaned.includes('私人')) return '私人及亲友借贷';
   if (cleaned.includes('消费贷') || cleaned.includes('借贷') || cleaned.includes('分期'))
     return '消费与信用借贷';
+  if (direction === 'mortgage') return '商业贷款本金';
   return direction === 'asset' ? '其他货币资产' : '其他借贷账务';
 }
 
@@ -238,7 +242,12 @@ export async function exportFullWorkbookToExcel(params: {
     .sort((a, b) => a.monthKey.localeCompare(b.monthKey) || a.direction.localeCompare(b.direction))
     .map((a) => ({
       盘点月份: a.monthKey,
-      大类: a.direction === 'asset' ? '货币资产' : '借贷与信用卡',
+      大类:
+        a.direction === 'asset'
+          ? '货币资产'
+          : a.direction === 'mortgage'
+            ? '房贷本金'
+            : '借贷与信用卡',
       细分类型: a.category,
       账户名称: a.name,
       所属机构: a.institution,
@@ -303,6 +312,13 @@ export async function exportAssetSnapshotToExcel(
   const totalLiab = assets
     .filter((a) => a.direction === 'liability')
     .reduce((acc, a) => acc + a.amount, 0);
+  const mortgageComm = assets
+    .filter((a) => a.direction === 'mortgage' && a.category !== '公积金贷款本金')
+    .reduce((acc, a) => acc + a.amount, 0);
+  const mortgageProv = assets
+    .filter((a) => a.direction === 'mortgage' && a.category === '公积金贷款本金')
+    .reduce((acc, a) => acc + a.amount, 0);
+  const mortgageTotal = mortgageComm + mortgageProv;
 
   const summarySheet = XLSX.utils.aoa_to_sheet([
     ['家庭月底货币资产与借贷统计汇总', monthLabel],
@@ -311,13 +327,21 @@ export async function exportAssetSnapshotToExcel(
     ['货币资产总计（储蓄卡/货基/积存金/股票等）', Number(totalAssets.toFixed(2))],
     ['借贷与信用卡待还总计', Number(totalLiab.toFixed(2))],
     ['家庭净货币资产', Number((totalAssets - totalLiab).toFixed(2))],
+    ['房贷剩余本金总额（商贷 + 公积金）', Number(mortgageTotal.toFixed(2))],
+    ['其中：商业贷款剩余本金', Number(mortgageComm.toFixed(2))],
+    ['其中：公积金贷款剩余本金', Number(mortgageProv.toFixed(2))],
   ]);
   summarySheet['!cols'] = [{ wch: 38 }, { wch: 18 }];
   XLSX.utils.book_append_sheet(wb, summarySheet, '资产借贷汇总');
 
   const detailRows = assets.map((a) => ({
     盘点月份: a.monthKey,
-    大类: a.direction === 'asset' ? '货币资产' : '借贷与信用卡',
+    大类:
+      a.direction === 'asset'
+        ? '货币资产'
+        : a.direction === 'mortgage'
+          ? '房贷本金'
+          : '借贷与信用卡',
     细分类型: a.category,
     账户名称: a.name,
     所属机构: a.institution,
@@ -475,6 +499,28 @@ export async function downloadImportTemplateExcel() {
       归属成员: '共同账户',
       备注: '当月已出与未出账单合计',
     },
+    {
+      盘点月份: '2026-11',
+      大类: '房贷本金',
+      细分类型: '商业贷款本金',
+      账户名称: '自住房商业贷款',
+      所属机构: '建设银行',
+      '期末余额或已用额度（元）': 980000,
+      '信用卡总额度（元）': '',
+      归属成员: '共同账户',
+      备注: '剩余待还本金，系统自动汇总商贷+公积金总额',
+    },
+    {
+      盘点月份: '2026-11',
+      大类: '房贷本金',
+      细分类型: '公积金贷款本金',
+      账户名称: '自住房公积金贷款',
+      所属机构: '市住房公积金中心',
+      '期末余额或已用额度（元）': 520000,
+      '信用卡总额度（元）': '',
+      归属成员: '共同账户',
+      备注: '剩余待还本金',
+    },
   ]);
   wsAssets['!cols'] = [
     { wch: 12 },
@@ -589,19 +635,31 @@ export async function parseExcelWorkbook(
         if (!name) return;
         const rawDir = String(getField(row, ['大类', '资产借贷类型', '资产负债类型', '方向']) ?? '');
         const rawSub = String(getField(row, ['细分类型', '资产类型', '类别']) ?? '');
+        const isMortgage =
+          rawDir.includes('房贷') ||
+          rawSub.includes('商贷') ||
+          rawSub.includes('商业贷款') ||
+          rawSub.includes('公积金贷款') ||
+          rawSub.includes('房贷');
         const isReceivable =
-          rawSub.includes('借出') ||
-          rawSub.includes('应收') ||
-          rawSub.includes('债权') ||
-          rawSub.includes('押金');
+          !isMortgage &&
+          (rawSub.includes('借出') ||
+            rawSub.includes('应收') ||
+            rawSub.includes('债权') ||
+            rawSub.includes('押金'));
         const isLiab =
+          !isMortgage &&
           !isReceivable &&
           (rawDir.includes('负债') ||
             rawDir.includes('借贷') ||
             rawDir.includes('信用卡') ||
             rawSub.includes('信用卡') ||
             rawSub.includes('借贷'));
-        const direction: AccountDirection = isLiab ? 'liability' : 'asset';
+        const direction: AccountDirection = isMortgage
+          ? 'mortgage'
+          : isLiab
+            ? 'liability'
+            : 'asset';
         const category = normalizeAssetCategory(rawSub, direction);
         const amount = toNumber(
           getField(row, [

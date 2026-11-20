@@ -209,6 +209,9 @@ export function computeAssetSnapshotSummary(
   let creditCardSpent = 0;
   let creditCardLimit = 0;
   let loanTotal = 0;
+  let mortgageCommercial = 0;
+  let mortgageProvident = 0;
+  let mortgageCount = 0;
   let assetCount = 0;
   let liabilityCount = 0;
 
@@ -223,6 +226,13 @@ export function computeAssetSnapshotSummary(
       cur.total += item.amount;
       cur.count += 1;
       assetGroup.set(item.category, cur);
+    } else if (item.direction === 'mortgage') {
+      mortgageCount += 1;
+      if (item.category === '公积金贷款本金') {
+        mortgageProvident += item.amount;
+      } else {
+        mortgageCommercial += item.amount;
+      }
     } else {
       totalLiabilities += item.amount;
       liabilityCount += 1;
@@ -238,6 +248,8 @@ export function computeAssetSnapshotSummary(
       liabGroup.set(item.category, cur);
     }
   }
+
+  const mortgageTotal = mortgageCommercial + mortgageProvident;
 
   const assetsByCategory: AssetCategoryBreakdownItem[] = Array.from(assetGroup.entries())
     .map(([category, stats]) => ({
@@ -264,14 +276,24 @@ export function computeAssetSnapshotSummary(
   const prevKey = getPreviousMonthKey(monthKey);
   const prevScoped = allAssets.filter((a) => a.monthKey === prevKey);
   let previousNetAssets: number | undefined;
+  let previousMortgageTotal: number | undefined;
   if (prevScoped.length > 0) {
-    const prevAssets = prevScoped
-      .filter((a) => a.direction === 'asset')
-      .reduce((acc, cur) => acc + cur.amount, 0);
-    const prevLiabs = prevScoped
-      .filter((a) => a.direction === 'liability')
-      .reduce((acc, cur) => acc + cur.amount, 0);
-    previousNetAssets = prevAssets - prevLiabs;
+    const prevLiquidItems = prevScoped.filter(
+      (a) => a.direction === 'asset' || a.direction === 'liability'
+    );
+    if (prevLiquidItems.length > 0) {
+      const prevAssets = prevLiquidItems
+        .filter((a) => a.direction === 'asset')
+        .reduce((acc, cur) => acc + cur.amount, 0);
+      const prevLiabs = prevLiquidItems
+        .filter((a) => a.direction === 'liability')
+        .reduce((acc, cur) => acc + cur.amount, 0);
+      previousNetAssets = prevAssets - prevLiabs;
+    }
+    const prevMortgages = prevScoped.filter((a) => a.direction === 'mortgage');
+    if (prevMortgages.length > 0) {
+      previousMortgageTotal = prevMortgages.reduce((acc, cur) => acc + cur.amount, 0);
+    }
   }
 
   return {
@@ -283,6 +305,11 @@ export function computeAssetSnapshotSummary(
     creditCardLimit,
     creditCardUtilization: creditCardLimit > 0 ? (creditCardSpent / creditCardLimit) * 100 : 0,
     loanTotal,
+    mortgageCommercial,
+    mortgageProvident,
+    mortgageTotal,
+    mortgageCount,
+    previousMortgageTotal,
     assetCount,
     liabilityCount,
     assetsByCategory,
@@ -304,7 +331,7 @@ export function computeAssetAnnualTrend(
     for (const item of allAssets) {
       if (item.monthKey !== monthKey) continue;
       if (item.direction === 'asset') totalAssets += item.amount;
-      else totalLiabilities += item.amount;
+      else if (item.direction === 'liability') totalLiabilities += item.amount;
     }
 
     points.push({

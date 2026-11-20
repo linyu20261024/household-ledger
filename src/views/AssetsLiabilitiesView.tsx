@@ -3,6 +3,7 @@ import {
   Check,
   Copy,
   Download,
+  Home,
   Pencil,
   Plus,
   RotateCcw,
@@ -36,6 +37,7 @@ interface AssetsLiabilitiesViewProps {
   monthItems: AssetAccountItem[];
   allAssetItems: AssetAccountItem[];
   summary: AssetSnapshotSummary;
+  monthlyMortgagePayment?: number;
   annualTrend: AssetMonthTrendPoint[];
   copySourceMonth: string | null;
   lastCopyUndo: CopyUndoState | null;
@@ -54,6 +56,7 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
   onChangeMonth,
   monthItems,
   summary,
+  monthlyMortgagePayment = 0,
   annualTrend,
   copySourceMonth,
   lastCopyUndo,
@@ -147,7 +150,12 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
         categories.push({
           category,
           color:
-            metaColorMap.get(category) || (direction === 'asset' ? '#0F766E' : '#DC2626'),
+            metaColorMap.get(category) ||
+            (direction === 'asset'
+              ? '#0F766E'
+              : direction === 'mortgage'
+                ? '#B45309'
+                : '#DC2626'),
           subtotal: cItems.reduce((acc, i) => acc + i.amount, 0),
           creditLimitTotal: cItems.reduce((acc, i) => acc + (i.creditLimit || 0), 0),
           items: cItems,
@@ -180,6 +188,14 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
     [monthItems, searchQuery, memberFilter, categoryFilter]
   );
 
+  const mortgageList = useMemo(
+    () =>
+      monthItems
+        .filter((a) => a.direction === 'mortgage' && matchesFilter(a))
+        .sort((a, b) => b.amount - a.amount),
+    [monthItems, searchQuery, memberFilter, categoryFilter]
+  );
+
   const assetMemberGroups = useMemo(
     () => buildMemberGroups(assetList, 'asset'),
     [assetList, metaColorMap]
@@ -188,6 +204,11 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
   const liabilityMemberGroups = useMemo(
     () => buildMemberGroups(liabilityList, 'liability'),
     [liabilityList, metaColorMap]
+  );
+
+  const mortgageMemberGroups = useMemo(
+    () => buildMemberGroups(mortgageList, 'mortgage'),
+    [mortgageList, metaColorMap]
   );
 
   const filteredAssetTotal = useMemo(
@@ -200,8 +221,14 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
     [liabilityList]
   );
 
+  const filteredMortgageTotal = useMemo(
+    () => mortgageList.reduce((acc, i) => acc + i.amount, 0),
+    [mortgageList]
+  );
+
   const totalMonthAssetsCount = monthItems.filter((a) => a.direction === 'asset').length;
   const totalMonthLiabilitiesCount = monthItems.filter((a) => a.direction === 'liability').length;
+  const totalMonthMortgagesCount = monthItems.filter((a) => a.direction === 'mortgage').length;
 
   const startInlineEdit = (item: AssetAccountItem) => {
     setInlineEditId(item.id);
@@ -267,6 +294,16 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
       ? summary.netMonetaryAssets - summary.previousNetAssets
       : undefined;
 
+  const mortgageDelta =
+    summary.previousMortgageTotal !== undefined
+      ? summary.mortgageTotal - summary.previousMortgageTotal
+      : undefined;
+
+  const commercialShare =
+    summary.mortgageTotal > 0 ? (summary.mortgageCommercial / summary.mortgageTotal) * 100 : 0;
+  const providentShare =
+    summary.mortgageTotal > 0 ? (summary.mortgageProvident / summary.mortgageTotal) * 100 : 0;
+
   return (
     <div className="space-y-3 sm:space-y-6">
       {/* Header & Action Toolbar */}
@@ -276,7 +313,7 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
             {selectedMonth} 月底家庭资产借贷统计
           </h2>
           <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-            统计储蓄卡、货基、积存金、股票、借出应收，及借贷与信用卡支出额度
+            统计货币资产、借贷与信用卡额度，及商贷与公积金房贷剩余本金汇总
           </p>
         </div>
 
@@ -306,6 +343,14 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
           >
             <Plus className="w-3.5 h-3.5" />
             <span>登记借贷 / 信用卡</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenAddAccount('mortgage')}
+            className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 h-10 sm:h-9 px-3.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>登记房贷本金</span>
           </button>
           <button
             type="button"
@@ -424,6 +469,75 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
         </div>
       </section>
 
+      {/* Dedicated Long-Term Mortgage Principal Strip */}
+      {(summary.mortgageCount > 0 || monthlyMortgagePayment > 0) && (
+        <section className="bg-white border border-amber-200/80 rounded-xl p-3 sm:p-5 space-y-2.5 sm:space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Home className="w-4 h-4 text-amber-700 shrink-0" />
+              <h3 className="font-display text-xs sm:text-sm font-semibold text-slate-900 truncate">
+                {selectedMonth} · 房贷剩余本金汇总（商贷 + 公积金）
+              </h3>
+            </div>
+            <span className="text-[11px] text-slate-500">
+              独立统计长期本金，不计入上方「净货币资产」与短债比率
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 pt-1 border-t border-slate-100">
+            <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-2.5 sm:p-3.5">
+              <div className="text-[11px] font-medium text-amber-900/80 truncate">
+                贷款本金总额
+              </div>
+              <div className="mt-1 font-mono-num text-base sm:text-xl font-bold text-amber-800 truncate">
+                {formatCurrency(summary.mortgageTotal)}
+              </div>
+              <div className="mt-0.5 text-[10px] sm:text-xs text-slate-500 font-mono-num truncate">
+                {mortgageDelta !== undefined
+                  ? `较上月 ${formatCurrency(mortgageDelta, true)}`
+                  : `共 ${summary.mortgageCount} 笔房贷`}
+              </div>
+            </div>
+
+            <div className="bg-slate-50/70 border border-slate-200/70 rounded-lg p-2.5 sm:p-3.5">
+              <div className="text-[11px] font-medium text-slate-500 truncate">
+                商业贷款本金
+              </div>
+              <div className="mt-1 font-mono-num text-base sm:text-xl font-bold text-slate-900 truncate">
+                {formatCurrency(summary.mortgageCommercial)}
+              </div>
+              <div className="mt-0.5 text-[10px] sm:text-xs text-slate-500 font-mono-num truncate">
+                占总本金 {formatPercent(commercialShare)}
+              </div>
+            </div>
+
+            <div className="bg-slate-50/70 border border-slate-200/70 rounded-lg p-2.5 sm:p-3.5">
+              <div className="text-[11px] font-medium text-slate-500 truncate">
+                公积金贷款本金
+              </div>
+              <div className="mt-1 font-mono-num text-base sm:text-xl font-bold text-sky-800 truncate">
+                {formatCurrency(summary.mortgageProvident)}
+              </div>
+              <div className="mt-0.5 text-[10px] sm:text-xs text-slate-500 font-mono-num truncate">
+                占总本金 {formatPercent(providentShare)}
+              </div>
+            </div>
+
+            <div className="bg-slate-50/70 border border-slate-200/70 rounded-lg p-2.5 sm:p-3.5">
+              <div className="text-[11px] font-medium text-slate-500 truncate">
+                本月房贷月供（固定支出）
+              </div>
+              <div className="mt-1 font-mono-num text-base sm:text-xl font-bold text-slate-900 truncate">
+                {formatCurrency(monthlyMortgagePayment)}
+              </div>
+              <div className="mt-0.5 text-[10px] sm:text-xs text-slate-500 truncate">
+                已于收支账本固定支出体现
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Charts Row */}
       <section className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-6 items-stretch">
         <div className="xl:col-span-7">
@@ -504,6 +618,13 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                     </option>
                   ))}
                 </optgroup>
+                <optgroup label="房贷本金（商贷 / 公积金）">
+                  {ASSET_CATEGORY_META.filter((m) => m.direction === 'mortgage').map((m) => (
+                    <option key={m.category} value={m.category}>
+                      {m.category}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
           </div>
@@ -515,6 +636,13 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                 {totalMonthAssetsCount} 项资产，{' '}
                 <strong className="text-slate-900 font-mono-num">{liabilityList.length}</strong> /{' '}
                 {totalMonthLiabilitiesCount} 项借贷与信用
+                {(totalMonthMortgagesCount > 0 || mortgageList.length > 0) && (
+                  <>
+                    ，{' '}
+                    <strong className="text-amber-800 font-mono-num">{mortgageList.length}</strong>{' '}
+                    / {totalMonthMortgagesCount} 项房贷本金
+                  </>
+                )}
               </span>
               <button
                 type="button"
@@ -1335,6 +1463,394 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* Section 3: Long-term Mortgage Principal (Commercial + Provident Fund) */}
+      <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="px-3 sm:px-6 py-2.5 sm:py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-display text-sm font-semibold text-slate-900">
+              三、房贷本金汇总与明细（商业贷款 + 公积金贷款）
+            </h3>
+            <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
+              每月待还月供已在「固定支出」体现；此处分别录入商贷与公积金剩余本金后自动汇总总额，点击金额可按月更新剩余本金
+            </p>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="font-mono-num text-xs sm:text-sm font-bold text-amber-800">
+              {hasActiveFilter ? '筛选本金总额' : '贷款本金总额'}{' '}
+              {formatCurrency(hasActiveFilter ? filteredMortgageTotal : summary.mortgageTotal)}
+            </span>
+            <button
+              type="button"
+              onClick={() => onOpenAddAccount('mortgage')}
+              className="inline-flex items-center gap-1 min-h-[30px] sm:min-h-[34px] px-2.5 py-1 text-[11px] sm:text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors no-print cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>登记商贷 / 公积金</span>
+            </button>
+          </div>
+        </div>
+
+        {mortgageList.length === 0 ? (
+          totalMonthMortgagesCount > 0 && hasActiveFilter ? (
+            <div className="p-8 text-center text-xs text-slate-500">
+              没有符合当前搜索或筛选条件的房贷本金记录
+            </div>
+          ) : (
+            <div className="p-6 sm:p-10 text-center">
+              <p className="text-sm font-medium text-slate-700">
+                {selectedMonth} 尚未录入房贷剩余本金
+              </p>
+              <p className="text-xs text-slate-500 mt-1 mb-4 max-w-xl mx-auto leading-relaxed">
+                房贷每月待还金额已在「固定支出」体现现金流压力；此处可分别录入<strong>商业贷款本金</strong>与<strong>公积金贷款本金</strong>，系统会自动汇总<strong>贷款本金总额</strong>并逐月继承，不会拉低净货币资产。
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
+                {copySourceMonth && monthItems.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={handleCopyAdjacent}
+                    className="h-10 px-4 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg cursor-pointer"
+                  >
+                    {copyActionLabel}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onOpenAddAccount('mortgage')}
+                  className="h-10 px-4 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg cursor-pointer"
+                >
+                  + 登记商业 / 公积金贷款本金
+                </button>
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {!hasActiveFilter && (
+              <div className="px-3 sm:px-6 py-2 bg-amber-50/40 flex flex-wrap items-center justify-between gap-2 text-[11px] sm:text-xs">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono-num">
+                  <span className="text-slate-700">
+                    商贷{' '}
+                    <strong className="text-slate-900">
+                      {formatCurrency(summary.mortgageCommercial)}
+                    </strong>{' '}
+                    <span className="text-slate-400">({formatPercent(commercialShare)})</span>
+                  </span>
+                  <span className="text-slate-300">+</span>
+                  <span className="text-slate-700">
+                    公积金{' '}
+                    <strong className="text-sky-800">
+                      {formatCurrency(summary.mortgageProvident)}
+                    </strong>{' '}
+                    <span className="text-slate-400">({formatPercent(providentShare)})</span>
+                  </span>
+                  <span className="text-slate-300">=</span>
+                  <span className="text-amber-900 font-semibold">
+                    贷款本金总额 {formatCurrency(summary.mortgageTotal)}
+                  </span>
+                </div>
+                {monthlyMortgagePayment > 0 && (
+                  <span className="text-slate-500 font-mono-num">
+                    本月固定支出房贷月供 {formatCurrency(monthlyMortgagePayment)}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {mortgageMemberGroups.map((memberGroup) => {
+              const memberShare =
+                summary.mortgageTotal > 0
+                  ? (memberGroup.subtotal / summary.mortgageTotal) * 100
+                  : 0;
+
+              return (
+                <div key={memberGroup.member}>
+                  {/* Member Group Header */}
+                  <div className="px-3 sm:px-6 py-2 sm:py-2.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs sm:text-[13px] font-bold text-slate-900">
+                        {memberGroup.member}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono-num">
+                        {memberGroup.totalCount} 笔 · 占总本金 {formatPercent(memberShare)}
+                      </span>
+                    </div>
+                    <span className="font-mono-num text-xs sm:text-[13px] font-bold text-amber-800 whitespace-nowrap">
+                      小计 {formatCurrency(memberGroup.subtotal)}
+                    </span>
+                  </div>
+
+                  {/* Mobile Grouped Rows */}
+                  <div className="md:hidden divide-y divide-slate-200">
+                    {memberGroup.categories.map((catGroup) => {
+                      const catShare =
+                        summary.mortgageTotal > 0
+                          ? (catGroup.subtotal / summary.mortgageTotal) * 100
+                          : 0;
+
+                      return (
+                        <div key={catGroup.category}>
+                          <div className="px-3 py-1.5 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className="w-2 h-2 rounded-xs shrink-0"
+                                style={{ backgroundColor: catGroup.color }}
+                              />
+                              <span className="text-[11px] font-semibold text-slate-700 truncate">
+                                {catGroup.category}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono-num">
+                                ({catGroup.items.length})
+                              </span>
+                            </div>
+                            <span className="font-mono-num text-[11px] font-bold text-slate-800 whitespace-nowrap">
+                              {formatCurrency(catGroup.subtotal)}
+                              <span className="ml-1 font-normal text-slate-400">
+                                ({formatPercent(catShare)})
+                              </span>
+                            </span>
+                          </div>
+
+                          <div className="divide-y divide-slate-100">
+                            {catGroup.items.map((item) => {
+                              const share =
+                                summary.mortgageTotal > 0
+                                  ? (item.amount / summary.mortgageTotal) * 100
+                                  : 0;
+                              const isEditingInline = inlineEditId === item.id;
+
+                              return (
+                                <div key={item.id} className="px-3 py-2 space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="text-[13px] font-semibold text-slate-900 truncate">
+                                        {item.name}
+                                      </span>
+                                    </div>
+
+                                    <div className="shrink-0">
+                                      {isEditingInline ? (
+                                        <div className="flex items-center gap-1">
+                                          <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            step="0.01"
+                                            min="0"
+                                            autoFocus
+                                            value={inlineVal}
+                                            onChange={(e) => setInlineVal(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') commitInlineEdit(item.id);
+                                              if (e.key === 'Escape') setInlineEditId(null);
+                                            }}
+                                            className="w-24 h-8 px-2 text-right font-mono-num text-sm bg-white border border-amber-600 rounded-md focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => commitInlineEdit(item.id)}
+                                            className="w-8 h-8 inline-flex items-center justify-center text-white bg-amber-700 hover:bg-amber-800 rounded-md"
+                                            aria-label="保存剩余本金"
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => startInlineEdit(item)}
+                                          className="px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold text-amber-800 whitespace-nowrap"
+                                          title="点击快捷更新剩余本金"
+                                        >
+                                          {formatCurrency(item.amount)}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="text-[11px] text-slate-500 truncate min-w-0">
+                                      <span>{item.institution}</span>
+                                      <span className="mx-1 text-slate-300">·</span>
+                                      <span className="font-mono-num text-amber-800">
+                                        占比 {formatPercent(share)}
+                                      </span>
+                                      {item.notes && (
+                                        <>
+                                          <span className="mx-1 text-slate-300">·</span>
+                                          <span className="text-slate-400">{item.notes}</span>
+                                        </>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1 shrink-0 no-print">
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditAccount(item)}
+                                        className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
+                                        aria-label="编辑房贷本金"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onDeleteAccount(item.id)}
+                                        className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
+                                        aria-label="删除房贷本金"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Desktop Grouped Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-white text-[11px] font-medium text-slate-500">
+                          <th className="py-2 px-5">房贷项目</th>
+                          <th className="py-2 px-4">贷款银行 / 公积金中心</th>
+                          <th className="py-2 px-4 text-right">占贷款总额比</th>
+                          <th className="py-2 px-4 text-right">月底剩余本金</th>
+                          <th className="py-2 px-5 text-right no-print">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {memberGroup.categories.map((catGroup) => {
+                          const catShare =
+                            summary.mortgageTotal > 0
+                              ? (catGroup.subtotal / summary.mortgageTotal) * 100
+                              : 0;
+
+                          return (
+                            <React.Fragment key={catGroup.category}>
+                              <tr className="bg-slate-50/90 border-y border-slate-100">
+                                <td colSpan={2} className="py-2 px-5 font-semibold text-slate-800">
+                                  <span className="inline-flex items-center gap-2">
+                                    <span
+                                      className="w-2 h-2 rounded-xs shrink-0"
+                                      style={{ backgroundColor: catGroup.color }}
+                                    />
+                                    <span>{catGroup.category}</span>
+                                    <span className="text-[11px] font-normal text-slate-500 font-mono-num">
+                                      ({catGroup.items.length} 笔 · 本金降序)
+                                    </span>
+                                  </span>
+                                </td>
+                                <td className="py-2 px-4 text-right font-mono-num text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+                                  {formatPercent(catShare)}
+                                </td>
+                                <td className="py-2 px-4 text-right font-mono-num font-bold text-amber-800 whitespace-nowrap">
+                                  {formatCurrency(catGroup.subtotal)}
+                                </td>
+                                <td className="py-2 px-5 no-print" />
+                              </tr>
+
+                              {catGroup.items.map((item) => {
+                                const share =
+                                  summary.mortgageTotal > 0
+                                    ? (item.amount / summary.mortgageTotal) * 100
+                                    : 0;
+                                const isEditingInline = inlineEditId === item.id;
+
+                                return (
+                                  <tr
+                                    key={item.id}
+                                    className="hover:bg-slate-50/80 transition-colors"
+                                  >
+                                    <td className="py-2.5 pl-9 pr-4">
+                                      <div className="font-medium text-slate-900">{item.name}</div>
+                                      {item.notes && (
+                                        <div className="text-[11px] text-slate-400 mt-0.5">
+                                          {item.notes}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-slate-600 whitespace-nowrap">
+                                      {item.institution}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-right font-mono-num text-slate-500 whitespace-nowrap">
+                                      {formatPercent(share)}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                                      {isEditingInline ? (
+                                        <div className="inline-flex items-center gap-1 justify-end">
+                                          <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            step="0.01"
+                                            min="0"
+                                            autoFocus
+                                            value={inlineVal}
+                                            onChange={(e) => setInlineVal(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') commitInlineEdit(item.id);
+                                              if (e.key === 'Escape') setInlineEditId(null);
+                                            }}
+                                            className="w-28 h-7 px-2 text-right font-mono-num text-xs bg-white border border-amber-600 rounded focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => commitInlineEdit(item.id)}
+                                            className="p-1 text-amber-700 hover:bg-amber-50 rounded"
+                                            aria-label="保存剩余本金"
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => startInlineEdit(item)}
+                                          title="点击快捷更新剩余本金"
+                                          className="font-mono-num font-semibold text-amber-800 hover:underline cursor-pointer"
+                                        >
+                                          {formatCurrency(item.amount)}
+                                        </button>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-5 text-right whitespace-nowrap no-print">
+                                      <div className="inline-flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => onEditAccount(item)}
+                                          className="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
+                                          aria-label="编辑房贷本金"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => onDeleteAccount(item.id)}
+                                          className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                                          aria-label="删除房贷本金"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

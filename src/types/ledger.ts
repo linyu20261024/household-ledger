@@ -89,7 +89,7 @@ export interface MonthlyTrendPoint {
 
 // --- Month-End Household Monetary Assets & Liabilities ---
 
-export type AccountDirection = 'asset' | 'liability';
+export type AccountDirection = 'asset' | 'liability' | 'mortgage';
 
 export type AssetCategory =
   | '储蓄卡余额'
@@ -101,7 +101,9 @@ export type AssetCategory =
   | '信用卡支出额度'
   | '消费与信用借贷'
   | '私人及亲友借贷'
-  | '其他借贷账务';
+  | '其他借贷账务'
+  | '商业贷款本金'
+  | '公积金贷款本金';
 
 export interface AssetAccountItem {
   id: string;
@@ -110,7 +112,7 @@ export interface AssetAccountItem {
   category: AssetCategory;
   name: string;
   institution: string;
-  amount: number; // 资产期末余额 或 负债待还/信用卡已用额度
+  amount: number; // 资产期末余额 或 负债待还/信用卡已用额度 或 房贷剩余本金
   creditLimit?: number; // 仅信用卡适用：授信总额度
   member: string;
   notes?: string;
@@ -135,6 +137,11 @@ export interface AssetSnapshotSummary {
   creditCardLimit: number;
   creditCardUtilization: number;
   loanTotal: number;
+  mortgageCommercial: number;
+  mortgageProvident: number;
+  mortgageTotal: number;
+  mortgageCount: number;
+  previousMortgageTotal?: number;
   assetCount: number;
   liabilityCount: number;
   assetsByCategory: AssetCategoryBreakdownItem[];
