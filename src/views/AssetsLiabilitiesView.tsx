@@ -16,6 +16,7 @@ import { ASSET_CATEGORY_META, DEFAULT_MEMBERS } from '../data/seedData';
 import {
   AccountDirection,
   AssetAccountItem,
+  AssetCategory,
   AssetMonthTrendPoint,
   AssetSnapshotSummary,
 } from '../types/ledger';
@@ -98,6 +99,71 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
     return true;
   };
 
+  interface CategorySubgroup {
+    category: AssetCategory;
+    color: string;
+    subtotal: number;
+    creditLimitTotal: number;
+    items: AssetAccountItem[];
+  }
+
+  interface MemberGroup {
+    member: string;
+    subtotal: number;
+    totalCount: number;
+    categories: CategorySubgroup[];
+  }
+
+  const buildMemberGroups = (
+    items: AssetAccountItem[],
+    direction: AccountDirection
+  ): MemberGroup[] => {
+    const memberSet = new Set(items.map((i) => i.member || DEFAULT_MEMBERS[0]));
+    const memberOrder: string[] = [
+      ...DEFAULT_MEMBERS.filter((m) => memberSet.has(m)),
+      ...[...memberSet].filter((m) => !DEFAULT_MEMBERS.includes(m)),
+    ];
+
+    const baseCategoryOrder = ASSET_CATEGORY_META.filter((m) => m.direction === direction).map(
+      (m) => m.category
+    );
+
+    const groups: MemberGroup[] = [];
+    for (const member of memberOrder) {
+      const mItems = items.filter((i) => (i.member || DEFAULT_MEMBERS[0]) === member);
+      if (mItems.length === 0) continue;
+
+      const extraCats = mItems
+        .map((i) => i.category)
+        .filter((c, idx, arr) => !baseCategoryOrder.includes(c) && arr.indexOf(c) === idx);
+      const catOrder = [...baseCategoryOrder, ...extraCats];
+
+      const categories: CategorySubgroup[] = [];
+      for (const category of catOrder) {
+        const cItems = mItems
+          .filter((i) => i.category === category)
+          .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, 'zh-CN'));
+        if (cItems.length === 0) continue;
+        categories.push({
+          category,
+          color:
+            metaColorMap.get(category) || (direction === 'asset' ? '#0F766E' : '#DC2626'),
+          subtotal: cItems.reduce((acc, i) => acc + i.amount, 0),
+          creditLimitTotal: cItems.reduce((acc, i) => acc + (i.creditLimit || 0), 0),
+          items: cItems,
+        });
+      }
+
+      groups.push({
+        member,
+        subtotal: mItems.reduce((acc, i) => acc + i.amount, 0),
+        totalCount: mItems.length,
+        categories,
+      });
+    }
+    return groups;
+  };
+
   const assetList = useMemo(
     () =>
       monthItems
@@ -112,6 +178,26 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
         .filter((a) => a.direction === 'liability' && matchesFilter(a))
         .sort((a, b) => b.amount - a.amount),
     [monthItems, searchQuery, memberFilter, categoryFilter]
+  );
+
+  const assetMemberGroups = useMemo(
+    () => buildMemberGroups(assetList, 'asset'),
+    [assetList, metaColorMap]
+  );
+
+  const liabilityMemberGroups = useMemo(
+    () => buildMemberGroups(liabilityList, 'liability'),
+    [liabilityList, metaColorMap]
+  );
+
+  const filteredAssetTotal = useMemo(
+    () => assetList.reduce((acc, i) => acc + i.amount, 0),
+    [assetList]
+  );
+
+  const filteredLiabilityTotal = useMemo(
+    () => liabilityList.reduce((acc, i) => acc + i.amount, 0),
+    [liabilityList]
   );
 
   const totalMonthAssetsCount = monthItems.filter((a) => a.direction === 'asset').length;
@@ -454,12 +540,13 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
               一、货币资产与应收账户明细（储蓄卡 / 货基 / 积存金 / 股票 / 借出款）
             </h3>
             <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
-              点击金额即可快捷修改月底余额
+              按成员与资产分类独立列出并按金额降序排列，点击金额即可快捷修改月底余额
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <span className="font-mono-num text-xs sm:text-sm font-bold text-teal-700">
-              小计 {formatCurrency(summary.totalAssets)}
+              {hasActiveFilter ? '筛选小计' : '小计'}{' '}
+              {formatCurrency(hasActiveFilter ? filteredAssetTotal : summary.totalAssets)}
             </span>
             {copySourceMonth && monthItems.length > 0 && (
               <button
@@ -508,211 +595,299 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
             </div>
           )
         ) : (
-          <>
-            {/* Mobile Compact Rows */}
-            <div className="md:hidden divide-y divide-slate-100">
-              {assetList.map((item) => {
-                const color = metaColorMap.get(item.category) || '#0F766E';
-                const share =
-                  summary.totalAssets > 0 ? (item.amount / summary.totalAssets) * 100 : 0;
-                const isEditingInline = inlineEditId === item.id;
+          <div className="divide-y divide-slate-200">
+            {assetMemberGroups.map((memberGroup) => {
+              const memberShare =
+                summary.totalAssets > 0
+                  ? (memberGroup.subtotal / summary.totalAssets) * 100
+                  : 0;
 
-                return (
-                  <div key={item.id} className="px-3 py-2 space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className="w-2 h-2 rounded-xs shrink-0"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span className="text-[13px] font-semibold text-slate-900 truncate">
-                          {item.name}
-                        </span>
-                      </div>
-
-                      <div className="shrink-0">
-                        {isEditingInline ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              step="0.01"
-                              min="0"
-                              autoFocus
-                              value={inlineVal}
-                              onChange={(e) => setInlineVal(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') commitInlineEdit(item.id);
-                                if (e.key === 'Escape') setInlineEditId(null);
-                              }}
-                              className="w-24 h-8 px-2 text-right font-mono-num text-sm bg-white border border-teal-600 rounded-md focus:outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => commitInlineEdit(item.id)}
-                              className="w-8 h-8 inline-flex items-center justify-center text-white bg-teal-700 hover:bg-teal-800 rounded-md"
-                              aria-label="保存金额"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => startInlineEdit(item)}
-                            className="px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold text-slate-900 whitespace-nowrap"
-                            title="点击快捷修改"
-                          >
-                            {formatCurrency(item.amount)}
-                          </button>
-                        )}
-                      </div>
+              return (
+                <div key={memberGroup.member}>
+                  {/* Member Group Header */}
+                  <div className="px-3 sm:px-6 py-2 sm:py-2.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs sm:text-[13px] font-bold text-slate-900">
+                        {memberGroup.member}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono-num">
+                        {memberGroup.totalCount} 项 · 占资产 {formatPercent(memberShare)}
+                      </span>
                     </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[11px] text-slate-500 truncate min-w-0">
-                        <span>{item.category}</span>
-                        <span className="mx-1 text-slate-300">·</span>
-                        <span>{item.institution}</span>
-                        <span className="mx-1 text-slate-300">·</span>
-                        <span>{item.member}</span>
-                        <span className="mx-1 text-slate-300">·</span>
-                        <span className="font-mono-num text-teal-700">{formatPercent(share)}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0 no-print">
-                        <button
-                          type="button"
-                          onClick={() => onEditAccount(item)}
-                          className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
-                          aria-label="编辑账户"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteAccount(item.id)}
-                          className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
-                          aria-label="删除账户"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
+                    <span className="font-mono-num text-xs sm:text-[13px] font-bold text-teal-700 whitespace-nowrap">
+                      小计 {formatCurrency(memberGroup.subtotal)}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
 
-            {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-medium text-slate-500">
-                    <th className="py-2.5 px-5">资产分类</th>
-                    <th className="py-2.5 px-4">账户名称</th>
-                    <th className="py-2.5 px-4">所属机构</th>
-                    <th className="py-2.5 px-4">归属成员</th>
-                    <th className="py-2.5 px-4 text-right">占总资产比</th>
-                    <th className="py-2.5 px-4 text-right">月底余额 / 市值</th>
-                    <th className="py-2.5 px-5 text-right no-print">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {assetList.map((item) => {
-                    const color = metaColorMap.get(item.category) || '#0F766E';
-                    const share =
-                      summary.totalAssets > 0 ? (item.amount / summary.totalAssets) * 100 : 0;
-                    const isEditingInline = inlineEditId === item.id;
+                  {/* Mobile Grouped Rows */}
+                  <div className="md:hidden divide-y divide-slate-200">
+                    {memberGroup.categories.map((catGroup) => {
+                      const catShare =
+                        summary.totalAssets > 0
+                          ? (catGroup.subtotal / summary.totalAssets) * 100
+                          : 0;
 
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-5 whitespace-nowrap font-medium text-slate-800">
-                          <span className="inline-flex items-center gap-2">
-                            <span
-                              className="w-2 h-2 rounded-xs shrink-0"
-                              style={{ backgroundColor: color }}
-                            />
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-medium text-slate-900">{item.name}</div>
-                          {item.notes && (
-                            <div className="text-[11px] text-slate-400 mt-0.5">{item.notes}</div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                          {item.institution}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{item.member}</td>
-                        <td className="py-3 px-4 text-right font-mono-num text-slate-500 whitespace-nowrap">
-                          {formatPercent(share)}
-                        </td>
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
-                          {isEditingInline ? (
-                            <div className="inline-flex items-center gap-1 justify-end">
-                              <input
-                                type="number"
-                                inputMode="decimal"
-                                step="0.01"
-                                min="0"
-                                autoFocus
-                                value={inlineVal}
-                                onChange={(e) => setInlineVal(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') commitInlineEdit(item.id);
-                                  if (e.key === 'Escape') setInlineEditId(null);
-                                }}
-                                className="w-28 h-7 px-2 text-right font-mono-num text-xs bg-white border border-teal-600 rounded focus:outline-none"
+                      return (
+                        <div key={catGroup.category}>
+                          <div className="px-3 py-1.5 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className="w-2 h-2 rounded-xs shrink-0"
+                                style={{ backgroundColor: catGroup.color }}
                               />
-                              <button
-                                type="button"
-                                onClick={() => commitInlineEdit(item.id)}
-                                className="p-1 text-teal-700 hover:bg-teal-50 rounded"
-                                aria-label="保存金额"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
+                              <span className="text-[11px] font-semibold text-slate-700 truncate">
+                                {catGroup.category}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono-num">
+                                ({catGroup.items.length})
+                              </span>
                             </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => startInlineEdit(item)}
-                              title="点击快捷修改月底余额"
-                              className="font-mono-num font-semibold text-slate-900 hover:text-teal-700 hover:underline cursor-pointer"
-                            >
-                              {formatCurrency(item.amount)}
-                            </button>
-                          )}
-                        </td>
-                        <td className="py-3 px-5 text-right whitespace-nowrap no-print">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => onEditAccount(item)}
-                              className="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
-                              aria-label="编辑账户"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteAccount(item.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
-                              aria-label="删除账户"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <span className="font-mono-num text-[11px] font-bold text-slate-800 whitespace-nowrap">
+                              {formatCurrency(catGroup.subtotal)}
+                              <span className="ml-1 font-normal text-slate-400">
+                                ({formatPercent(catShare)})
+                              </span>
+                            </span>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
+
+                          <div className="divide-y divide-slate-100">
+                            {catGroup.items.map((item) => {
+                              const share =
+                                summary.totalAssets > 0
+                                  ? (item.amount / summary.totalAssets) * 100
+                                  : 0;
+                              const isEditingInline = inlineEditId === item.id;
+
+                              return (
+                                <div key={item.id} className="px-3 py-2 space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="text-[13px] font-semibold text-slate-900 truncate">
+                                        {item.name}
+                                      </span>
+                                    </div>
+
+                                    <div className="shrink-0">
+                                      {isEditingInline ? (
+                                        <div className="flex items-center gap-1">
+                                          <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            step="0.01"
+                                            min="0"
+                                            autoFocus
+                                            value={inlineVal}
+                                            onChange={(e) => setInlineVal(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') commitInlineEdit(item.id);
+                                              if (e.key === 'Escape') setInlineEditId(null);
+                                            }}
+                                            className="w-24 h-8 px-2 text-right font-mono-num text-sm bg-white border border-teal-600 rounded-md focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => commitInlineEdit(item.id)}
+                                            className="w-8 h-8 inline-flex items-center justify-center text-white bg-teal-700 hover:bg-teal-800 rounded-md"
+                                            aria-label="保存金额"
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => startInlineEdit(item)}
+                                          className="px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold text-slate-900 whitespace-nowrap"
+                                          title="点击快捷修改"
+                                        >
+                                          {formatCurrency(item.amount)}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="text-[11px] text-slate-500 truncate min-w-0">
+                                      <span>{item.institution}</span>
+                                      <span className="mx-1 text-slate-300">·</span>
+                                      <span className="font-mono-num text-teal-700">
+                                        {formatPercent(share)}
+                                      </span>
+                                      {item.notes && (
+                                        <>
+                                          <span className="mx-1 text-slate-300">·</span>
+                                          <span className="text-slate-400">{item.notes}</span>
+                                        </>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1 shrink-0 no-print">
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditAccount(item)}
+                                        className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
+                                        aria-label="编辑账户"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onDeleteAccount(item.id)}
+                                        className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
+                                        aria-label="删除账户"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Desktop Grouped Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-white text-[11px] font-medium text-slate-500">
+                          <th className="py-2 px-5">账户名称</th>
+                          <th className="py-2 px-4">所属机构</th>
+                          <th className="py-2 px-4 text-right">占总资产比</th>
+                          <th className="py-2 px-4 text-right">月底余额 / 市值</th>
+                          <th className="py-2 px-5 text-right no-print">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {memberGroup.categories.map((catGroup) => {
+                          const catShare =
+                            summary.totalAssets > 0
+                              ? (catGroup.subtotal / summary.totalAssets) * 100
+                              : 0;
+
+                          return (
+                            <React.Fragment key={catGroup.category}>
+                              <tr className="bg-slate-50/90 border-y border-slate-100">
+                                <td colSpan={2} className="py-2 px-5 font-semibold text-slate-800">
+                                  <span className="inline-flex items-center gap-2">
+                                    <span
+                                      className="w-2 h-2 rounded-xs shrink-0"
+                                      style={{ backgroundColor: catGroup.color }}
+                                    />
+                                    <span>{catGroup.category}</span>
+                                    <span className="text-[11px] font-normal text-slate-500 font-mono-num">
+                                      ({catGroup.items.length} 项 · 金额降序)
+                                    </span>
+                                  </span>
+                                </td>
+                                <td className="py-2 px-4 text-right font-mono-num text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+                                  {formatPercent(catShare)}
+                                </td>
+                                <td className="py-2 px-4 text-right font-mono-num font-bold text-slate-900 whitespace-nowrap">
+                                  {formatCurrency(catGroup.subtotal)}
+                                </td>
+                                <td className="py-2 px-5 no-print" />
+                              </tr>
+
+                              {catGroup.items.map((item) => {
+                                const share =
+                                  summary.totalAssets > 0
+                                    ? (item.amount / summary.totalAssets) * 100
+                                    : 0;
+                                const isEditingInline = inlineEditId === item.id;
+
+                                return (
+                                  <tr
+                                    key={item.id}
+                                    className="hover:bg-slate-50/80 transition-colors"
+                                  >
+                                    <td className="py-2.5 pl-9 pr-4">
+                                      <div className="font-medium text-slate-900">{item.name}</div>
+                                      {item.notes && (
+                                        <div className="text-[11px] text-slate-400 mt-0.5">
+                                          {item.notes}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-slate-600 whitespace-nowrap">
+                                      {item.institution}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-right font-mono-num text-slate-500 whitespace-nowrap">
+                                      {formatPercent(share)}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                                      {isEditingInline ? (
+                                        <div className="inline-flex items-center gap-1 justify-end">
+                                          <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            step="0.01"
+                                            min="0"
+                                            autoFocus
+                                            value={inlineVal}
+                                            onChange={(e) => setInlineVal(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') commitInlineEdit(item.id);
+                                              if (e.key === 'Escape') setInlineEditId(null);
+                                            }}
+                                            className="w-28 h-7 px-2 text-right font-mono-num text-xs bg-white border border-teal-600 rounded focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => commitInlineEdit(item.id)}
+                                            className="p-1 text-teal-700 hover:bg-teal-50 rounded"
+                                            aria-label="保存金额"
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => startInlineEdit(item)}
+                                          title="点击快捷修改月底余额"
+                                          className="font-mono-num font-semibold text-slate-900 hover:text-teal-700 hover:underline cursor-pointer"
+                                        >
+                                          {formatCurrency(item.amount)}
+                                        </button>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-5 text-right whitespace-nowrap no-print">
+                                      <div className="inline-flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => onEditAccount(item)}
+                                          className="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
+                                          aria-label="编辑账户"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => onDeleteAccount(item.id)}
+                                          className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                                          aria-label="删除账户"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
 
@@ -724,15 +899,18 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
               二、借贷账务与信用卡支出额度明细
             </h3>
             <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
-              追踪月底信用卡已用待还额度、授信总额度及各类消费贷/亲友借贷余额
+              按成员与借贷类别（信用卡 / 消费借贷 / 私人亲友借贷）分开列出并按金额降序排列
             </p>
           </div>
           <span
             className={`font-mono-num text-xs sm:text-sm font-bold ${
-              summary.totalLiabilities < 0 ? 'text-teal-700' : 'text-red-600'
+              (hasActiveFilter ? filteredLiabilityTotal : summary.totalLiabilities) < 0
+                ? 'text-teal-700'
+                : 'text-red-600'
             }`}
           >
-            借贷与信用支出小计 {formatCurrency(summary.totalLiabilities)}
+            {hasActiveFilter ? '筛选借贷小计' : '借贷与信用支出小计'}{' '}
+            {formatCurrency(hasActiveFilter ? filteredLiabilityTotal : summary.totalLiabilities)}
           </span>
         </div>
 
@@ -756,307 +934,408 @@ export const AssetsLiabilitiesView: React.FC<AssetsLiabilitiesViewProps> = ({
             </div>
           )
         ) : (
-          <>
-            {/* Mobile Compact Rows */}
-            <div className="md:hidden divide-y divide-slate-100">
-              {liabilityList.map((item) => {
-                const color = metaColorMap.get(item.category) || '#DC2626';
-                const isEditingInline = inlineEditId === item.id;
-                const isCreditCard = item.category === '信用卡支出额度';
-                const isNegativeCredit = isCreditCard && item.amount < 0;
-                const utilPct =
-                  item.creditLimit && item.creditLimit > 0
-                    ? (item.amount / item.creditLimit) * 100
-                    : null;
-
-                return (
-                  <div key={item.id} className="px-3 py-2 space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className="w-2 h-2 rounded-xs shrink-0"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span className="text-[13px] font-semibold text-slate-900 truncate">
-                          {item.name}
-                        </span>
-                      </div>
-
-                      <div className="shrink-0">
-                        {isEditingInline ? (
-                          <div className="flex items-center gap-1">
-                            {isCreditCard && (
-                              <button
-                                type="button"
-                                onClick={toggleInlineSign}
-                                className={`h-8 px-1.5 text-xs font-semibold rounded-md border ${
-                                  inlineVal.trim().startsWith('-')
-                                    ? 'bg-teal-50 border-teal-600 text-teal-800'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700'
-                                }`}
-                                title="切换正负"
-                              >
-                                ±
-                              </button>
-                            )}
-                            <input
-                              type="number"
-                              inputMode={isCreditCard ? undefined : 'decimal'}
-                              step="0.01"
-                              min={isCreditCard ? undefined : '0'}
-                              autoFocus
-                              value={inlineVal}
-                              onChange={(e) => setInlineVal(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') commitInlineEdit(item.id);
-                                if (e.key === 'Escape') setInlineEditId(null);
-                              }}
-                              className="w-22 h-8 px-2 text-right font-mono-num text-sm bg-white border border-teal-600 rounded-md focus:outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => commitInlineEdit(item.id)}
-                              className="w-8 h-8 inline-flex items-center justify-center text-white bg-teal-700 hover:bg-teal-800 rounded-md"
-                              aria-label="保存金额"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => startInlineEdit(item)}
-                            className={`px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold whitespace-nowrap ${
-                              isNegativeCredit ? 'text-teal-700' : 'text-red-600'
-                            }`}
-                            title="点击快捷修改"
-                          >
-                            {formatCurrency(item.amount)}
-                            {isNegativeCredit && (
-                              <span className="ml-1 text-[10px] font-normal">溢缴</span>
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[11px] text-slate-500 truncate min-w-0">
-                        <span>{item.institution}</span>
-                        <span className="mx-1 text-slate-300">·</span>
-                        <span>{item.member}</span>
-                        {item.creditLimit && item.creditLimit > 0 ? (
-                          <>
-                            <span className="mx-1 text-slate-300">·</span>
-                            <span
-                              className={`font-mono-num ${
-                                isNegativeCredit
-                                  ? 'text-teal-700'
-                                  : (utilPct || 0) > 60
-                                    ? 'text-red-600 font-semibold'
-                                    : ''
-                              }`}
-                            >
-                              授信{formatCurrency(item.creditLimit)} ({formatPercent(utilPct || 0)})
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="mx-1 text-slate-300">·</span>
-                            <span>{item.category}</span>
-                          </>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0 no-print">
-                        <button
-                          type="button"
-                          onClick={() => onEditAccount(item)}
-                          className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
-                          aria-label="编辑借贷账户"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteAccount(item.id)}
-                          className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
-                          aria-label="删除借贷账户"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {item.creditLimit && item.creditLimit > 0 && (
-                      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            (utilPct || 0) > 60 ? 'bg-red-600' : 'bg-amber-600'
-                          }`}
-                          style={{ width: `${Math.max(0, Math.min(100, utilPct || 0))}%` }}
-                        />
-                      </div>
-                    )}
+          <div className="divide-y divide-slate-200">
+            {liabilityMemberGroups.map((memberGroup) => (
+              <div key={memberGroup.member}>
+                {/* Member Group Header */}
+                <div className="px-3 sm:px-6 py-2 sm:py-2.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs sm:text-[13px] font-bold text-slate-900">
+                      {memberGroup.member}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono-num">
+                      {memberGroup.totalCount} 项
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  <span
+                    className={`font-mono-num text-xs sm:text-[13px] font-bold whitespace-nowrap ${
+                      memberGroup.subtotal < 0 ? 'text-teal-700' : 'text-red-600'
+                    }`}
+                  >
+                    小计 {formatCurrency(memberGroup.subtotal)}
+                  </span>
+                </div>
 
-            {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-medium text-slate-500">
-                    <th className="py-2.5 px-5">借贷类别</th>
-                    <th className="py-2.5 px-4">账户 / 借贷项目</th>
-                    <th className="py-2.5 px-4">所属机构</th>
-                    <th className="py-2.5 px-4">归属成员</th>
-                    <th className="py-2.5 px-4 text-right">授信额度 / 使用率</th>
-                    <th className="py-2.5 px-4 text-right">已用支出 / 待还余额</th>
-                    <th className="py-2.5 px-5 text-right no-print">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {liabilityList.map((item) => {
-                    const color = metaColorMap.get(item.category) || '#DC2626';
-                    const isEditingInline = inlineEditId === item.id;
-                    const isCreditCard = item.category === '信用卡支出额度';
-                    const isNegativeCredit = isCreditCard && item.amount < 0;
-                    const utilPct =
-                      item.creditLimit && item.creditLimit > 0
-                        ? (item.amount / item.creditLimit) * 100
+                {/* Mobile Grouped Rows */}
+                <div className="md:hidden divide-y divide-slate-200">
+                  {memberGroup.categories.map((catGroup) => {
+                    const isCardCategory = catGroup.category === '信用卡支出额度';
+                    const catUtilPct =
+                      isCardCategory && catGroup.creditLimitTotal > 0
+                        ? (catGroup.subtotal / catGroup.creditLimitTotal) * 100
                         : null;
 
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-5 whitespace-nowrap font-medium text-slate-800">
-                          <span className="inline-flex items-center gap-2">
+                      <div key={catGroup.category}>
+                        <div className="px-3 py-1.5 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <span
                               className="w-2 h-2 rounded-xs shrink-0"
-                              style={{ backgroundColor: color }}
+                              style={{ backgroundColor: catGroup.color }}
                             />
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-medium text-slate-900">{item.name}</div>
-                          {item.notes && (
-                            <div className="text-[11px] text-slate-400 mt-0.5">{item.notes}</div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                          {item.institution}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{item.member}</td>
-                        <td className="py-3 px-4 text-right font-mono-num text-slate-500 whitespace-nowrap">
-                          {item.creditLimit ? (
-                            <span>
-                              总额 {formatCurrency(item.creditLimit)} ·{' '}
-                              {isNegativeCredit ? (
-                                <strong className="text-teal-700">
-                                  溢缴结余（{formatPercent(utilPct || 0)}）
-                                </strong>
-                              ) : (
-                                <>
-                                  已用{' '}
-                                  <strong
-                                    className={
-                                      (utilPct || 0) > 60 ? 'text-red-600' : 'text-slate-700'
-                                    }
-                                  >
-                                    {formatPercent(utilPct || 0)}
-                                  </strong>
-                                </>
-                              )}
+                            <span className="text-[11px] font-semibold text-slate-700 truncate">
+                              {catGroup.category}
                             </span>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
-                          {isEditingInline ? (
-                            <div className="inline-flex items-center gap-1 justify-end">
-                              {isCreditCard && (
-                                <button
-                                  type="button"
-                                  onClick={toggleInlineSign}
-                                  className={`h-7 px-1.5 text-[11px] font-semibold rounded border ${
-                                    inlineVal.trim().startsWith('-')
-                                      ? 'bg-teal-50 border-teal-600 text-teal-800'
-                                      : 'bg-slate-50 border-slate-200 text-slate-700'
-                                  }`}
-                                  title="切换正负"
-                                >
-                                  ±
-                                </button>
-                              )}
-                              <input
-                                type="number"
-                                inputMode={isCreditCard ? undefined : 'decimal'}
-                                step="0.01"
-                                min={isCreditCard ? undefined : '0'}
-                                autoFocus
-                                value={inlineVal}
-                                onChange={(e) => setInlineVal(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') commitInlineEdit(item.id);
-                                  if (e.key === 'Escape') setInlineEditId(null);
-                                }}
-                                className="w-28 h-7 px-2 text-right font-mono-num text-xs bg-white border border-teal-600 rounded focus:outline-none"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => commitInlineEdit(item.id)}
-                                className="p-1 text-teal-700 hover:bg-teal-50 rounded"
-                                aria-label="保存金额"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => startInlineEdit(item)}
-                              title="点击快捷修改月底金额"
-                              className={`font-mono-num font-semibold hover:underline cursor-pointer ${
-                                isNegativeCredit ? 'text-teal-700' : 'text-red-600'
-                              }`}
-                            >
-                              {formatCurrency(item.amount)}
-                              {isNegativeCredit && (
-                                <span className="ml-1 text-[11px] font-normal">（溢缴）</span>
-                              )}
-                            </button>
-                          )}
-                        </td>
-                        <td className="py-3 px-5 text-right whitespace-nowrap no-print">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => onEditAccount(item)}
-                              className="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
-                              aria-label="编辑借贷账户"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteAccount(item.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
-                              aria-label="删除借贷账户"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <span className="text-[10px] text-slate-400 font-mono-num">
+                              ({catGroup.items.length})
+                            </span>
                           </div>
-                        </td>
-                      </tr>
+                          <span
+                            className={`font-mono-num text-[11px] font-bold whitespace-nowrap ${
+                              catGroup.subtotal < 0 ? 'text-teal-700' : 'text-red-600'
+                            }`}
+                          >
+                            {formatCurrency(catGroup.subtotal)}
+                            {catUtilPct !== null && (
+                              <span className="ml-1 font-normal text-slate-500">
+                                / {formatCurrency(catGroup.creditLimitTotal)} (
+                                {formatPercent(catUtilPct)})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="divide-y divide-slate-100">
+                          {catGroup.items.map((item) => {
+                            const isEditingInline = inlineEditId === item.id;
+                            const isCreditCard = item.category === '信用卡支出额度';
+                            const isNegativeCredit = isCreditCard && item.amount < 0;
+                            const utilPct =
+                              item.creditLimit && item.creditLimit > 0
+                                ? (item.amount / item.creditLimit) * 100
+                                : null;
+
+                            return (
+                              <div key={item.id} className="px-3 py-2 space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="text-[13px] font-semibold text-slate-900 truncate">
+                                      {item.name}
+                                    </span>
+                                  </div>
+
+                                  <div className="shrink-0">
+                                    {isEditingInline ? (
+                                      <div className="flex items-center gap-1">
+                                        {isCreditCard && (
+                                          <button
+                                            type="button"
+                                            onClick={toggleInlineSign}
+                                            className={`h-8 px-1.5 text-xs font-semibold rounded-md border ${
+                                              inlineVal.trim().startsWith('-')
+                                                ? 'bg-teal-50 border-teal-600 text-teal-800'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700'
+                                            }`}
+                                            title="切换正负"
+                                          >
+                                            ±
+                                          </button>
+                                        )}
+                                        <input
+                                          type="number"
+                                          inputMode={isCreditCard ? undefined : 'decimal'}
+                                          step="0.01"
+                                          min={isCreditCard ? undefined : '0'}
+                                          autoFocus
+                                          value={inlineVal}
+                                          onChange={(e) => setInlineVal(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') commitInlineEdit(item.id);
+                                            if (e.key === 'Escape') setInlineEditId(null);
+                                          }}
+                                          className="w-22 h-8 px-2 text-right font-mono-num text-sm bg-white border border-teal-600 rounded-md focus:outline-none"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => commitInlineEdit(item.id)}
+                                          className="w-8 h-8 inline-flex items-center justify-center text-white bg-teal-700 hover:bg-teal-800 rounded-md"
+                                          aria-label="保存金额"
+                                        >
+                                          <Check className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => startInlineEdit(item)}
+                                        className={`px-1.5 py-0.5 -mr-1.5 rounded active:bg-slate-100 font-mono-num text-[13px] font-bold whitespace-nowrap ${
+                                          isNegativeCredit ? 'text-teal-700' : 'text-red-600'
+                                        }`}
+                                        title="点击快捷修改"
+                                      >
+                                        {formatCurrency(item.amount)}
+                                        {isNegativeCredit && (
+                                          <span className="ml-1 text-[10px] font-normal">
+                                            溢缴
+                                          </span>
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-[11px] text-slate-500 truncate min-w-0">
+                                    <span>{item.institution}</span>
+                                    {item.creditLimit && item.creditLimit > 0 ? (
+                                      <>
+                                        <span className="mx-1 text-slate-300">·</span>
+                                        <span
+                                          className={`font-mono-num ${
+                                            isNegativeCredit
+                                              ? 'text-teal-700'
+                                              : (utilPct || 0) > 60
+                                                ? 'text-red-600 font-semibold'
+                                                : ''
+                                          }`}
+                                        >
+                                          授信{formatCurrency(item.creditLimit)} (
+                                          {formatPercent(utilPct || 0)})
+                                        </span>
+                                      </>
+                                    ) : (
+                                      item.notes && (
+                                        <>
+                                          <span className="mx-1 text-slate-300">·</span>
+                                          <span className="text-slate-400">{item.notes}</span>
+                                        </>
+                                      )
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0 no-print">
+                                    <button
+                                      type="button"
+                                      onClick={() => onEditAccount(item)}
+                                      className="w-7 h-7 inline-flex items-center justify-center text-slate-500 active:bg-slate-100 rounded-md"
+                                      aria-label="编辑借贷账户"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => onDeleteAccount(item.id)}
+                                      className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 active:bg-red-50 rounded-md"
+                                      aria-label="删除借贷账户"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {item.creditLimit && item.creditLimit > 0 && (
+                                  <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        (utilPct || 0) > 60 ? 'bg-red-600' : 'bg-amber-600'
+                                      }`}
+                                      style={{
+                                        width: `${Math.max(0, Math.min(100, utilPct || 0))}%`,
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-          </>
+                </div>
+
+                {/* Desktop Grouped Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-white text-[11px] font-medium text-slate-500">
+                        <th className="py-2 px-5">账户 / 借贷项目</th>
+                        <th className="py-2 px-4">所属机构 / 对象</th>
+                        <th className="py-2 px-4 text-right">授信额度 / 使用率</th>
+                        <th className="py-2 px-4 text-right">已用支出 / 待还余额</th>
+                        <th className="py-2 px-5 text-right no-print">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {memberGroup.categories.map((catGroup) => {
+                        const isCardCategory = catGroup.category === '信用卡支出额度';
+                        const catUtilPct =
+                          isCardCategory && catGroup.creditLimitTotal > 0
+                            ? (catGroup.subtotal / catGroup.creditLimitTotal) * 100
+                            : null;
+
+                        return (
+                          <React.Fragment key={catGroup.category}>
+                            <tr className="bg-slate-50/90 border-y border-slate-100">
+                              <td colSpan={2} className="py-2 px-5 font-semibold text-slate-800">
+                                <span className="inline-flex items-center gap-2">
+                                  <span
+                                    className="w-2 h-2 rounded-xs shrink-0"
+                                    style={{ backgroundColor: catGroup.color }}
+                                  />
+                                  <span>{catGroup.category}</span>
+                                  <span className="text-[11px] font-normal text-slate-500 font-mono-num">
+                                    ({catGroup.items.length} 项 · 金额降序)
+                                  </span>
+                                </span>
+                              </td>
+                              <td className="py-2 px-4 text-right font-mono-num text-[11px] text-slate-500 whitespace-nowrap">
+                                {catUtilPct !== null
+                                  ? `总授信 ${formatCurrency(catGroup.creditLimitTotal)} (${formatPercent(catUtilPct)})`
+                                  : '—'}
+                              </td>
+                              <td
+                                className={`py-2 px-4 text-right font-mono-num font-bold whitespace-nowrap ${
+                                  catGroup.subtotal < 0 ? 'text-teal-700' : 'text-red-600'
+                                }`}
+                              >
+                                {formatCurrency(catGroup.subtotal)}
+                              </td>
+                              <td className="py-2 px-5 no-print" />
+                            </tr>
+
+                            {catGroup.items.map((item) => {
+                              const isEditingInline = inlineEditId === item.id;
+                              const isCreditCard = item.category === '信用卡支出额度';
+                              const isNegativeCredit = isCreditCard && item.amount < 0;
+                              const utilPct =
+                                item.creditLimit && item.creditLimit > 0
+                                  ? (item.amount / item.creditLimit) * 100
+                                  : null;
+
+                              return (
+                                <tr
+                                  key={item.id}
+                                  className="hover:bg-slate-50/80 transition-colors"
+                                >
+                                  <td className="py-2.5 pl-9 pr-4">
+                                    <div className="font-medium text-slate-900">{item.name}</div>
+                                    {item.notes && (
+                                      <div className="text-[11px] text-slate-400 mt-0.5">
+                                        {item.notes}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-4 text-slate-600 whitespace-nowrap">
+                                    {item.institution}
+                                  </td>
+                                  <td className="py-2.5 px-4 text-right font-mono-num text-slate-500 whitespace-nowrap">
+                                    {item.creditLimit ? (
+                                      <span>
+                                        总额 {formatCurrency(item.creditLimit)} ·{' '}
+                                        {isNegativeCredit ? (
+                                          <strong className="text-teal-700">
+                                            溢缴结余（{formatPercent(utilPct || 0)}）
+                                          </strong>
+                                        ) : (
+                                          <>
+                                            已用{' '}
+                                            <strong
+                                              className={
+                                                (utilPct || 0) > 60
+                                                  ? 'text-red-600'
+                                                  : 'text-slate-700'
+                                              }
+                                            >
+                                              {formatPercent(utilPct || 0)}
+                                            </strong>
+                                          </>
+                                        )}
+                                      </span>
+                                    ) : (
+                                      '—'
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                                    {isEditingInline ? (
+                                      <div className="inline-flex items-center gap-1 justify-end">
+                                        {isCreditCard && (
+                                          <button
+                                            type="button"
+                                            onClick={toggleInlineSign}
+                                            className={`h-7 px-1.5 text-[11px] font-semibold rounded border ${
+                                              inlineVal.trim().startsWith('-')
+                                                ? 'bg-teal-50 border-teal-600 text-teal-800'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700'
+                                            }`}
+                                            title="切换正负"
+                                          >
+                                            ±
+                                          </button>
+                                        )}
+                                        <input
+                                          type="number"
+                                          inputMode={isCreditCard ? undefined : 'decimal'}
+                                          step="0.01"
+                                          min={isCreditCard ? undefined : '0'}
+                                          autoFocus
+                                          value={inlineVal}
+                                          onChange={(e) => setInlineVal(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') commitInlineEdit(item.id);
+                                            if (e.key === 'Escape') setInlineEditId(null);
+                                          }}
+                                          className="w-28 h-7 px-2 text-right font-mono-num text-xs bg-white border border-teal-600 rounded focus:outline-none"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => commitInlineEdit(item.id)}
+                                          className="p-1 text-teal-700 hover:bg-teal-50 rounded"
+                                          aria-label="保存金额"
+                                        >
+                                          <Check className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => startInlineEdit(item)}
+                                        title="点击快捷修改月底金额"
+                                        className={`font-mono-num font-semibold hover:underline cursor-pointer ${
+                                          isNegativeCredit ? 'text-teal-700' : 'text-red-600'
+                                        }`}
+                                      >
+                                        {formatCurrency(item.amount)}
+                                        {isNegativeCredit && (
+                                          <span className="ml-1 text-[11px] font-normal">
+                                            （溢缴）
+                                          </span>
+                                        )}
+                                      </button>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-5 text-right whitespace-nowrap no-print">
+                                    <div className="inline-flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditAccount(item)}
+                                        className="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100"
+                                        aria-label="编辑借贷账户"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onDeleteAccount(item.id)}
+                                        className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                                        aria-label="删除借贷账户"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </section>
     </div>
